@@ -1039,7 +1039,7 @@ describe("ThreadRow", () => {
   });
 
   it.each([true, false])(
-    "reserves a stable action slot beside a parent disclosure (collapsed: %s)",
+    "gives a parent title the action space while actions are hidden (collapsed: %s)",
     (isCollapsed) => {
       const onToggleCollapsed = vi.fn();
       renderThreadRow({
@@ -1074,15 +1074,7 @@ describe("ThreadRow", () => {
         titleContainer?.classList.contains(
           "pr-(--bb-sidebar-hover-actions-inset)",
         ),
-      ).toBe(true);
-      expect(
-        titleContainer?.style.getPropertyValue(
-          "--bb-sidebar-hover-actions-inset",
-        ),
-      ).toBe("calc(var(--spacing) * 7.5)");
-      expect(
-        titleContainer?.classList.contains("[@media(hover:none)]:pr-0"),
-      ).toBe(true);
+      ).toBe(false);
       expect(navigationTarget?.classList.contains("flex-1")).toBe(true);
       expect(titleWrapper?.classList.contains("flex-1")).toBe(false);
       fireEvent.click(toggle);
