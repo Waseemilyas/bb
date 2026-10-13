@@ -4,7 +4,6 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RootComposeCompactHome } from "./RootComposeCompactHome";
 import { COMPOSER_EDITOR_AVAILABLE_HEIGHT_PROPERTY } from "@/components/promptbox/ComposerEditorSlot";
-import { MOBILE_RECENT_ROW_HEIGHT_PX } from "./RootComposeMobileRecents";
 
 afterEach(() => {
   cleanup();
@@ -48,11 +47,13 @@ describe("RootComposeCompactHome", () => {
 
     renderCompactHome();
 
-    const viewport = screen.getByTestId("root-compose-compact-scroll-viewport");
+    const leadingSpacer = screen.getByTestId(
+      "root-compose-compact-leading-spacer",
+    );
     const bottomSpacer = screen.getByTestId(
       "root-compose-compact-bottom-spacer",
     );
-    expect(viewport.style.top).toBe("310px");
+    expect(leadingSpacer.style.height).toBe("314px");
     expect(bottomSpacer.style.height).toBe("188px");
   });
 
@@ -84,11 +85,15 @@ describe("RootComposeCompactHome", () => {
     ).toBe(`${480 - 56 - (682 - 540)}px`);
   });
 
-  it("offsets the resting list by one row so 4.5 show before scrolling", () => {
+  it("starts the scroll viewport at the app chrome row so rows scroll up through the band", () => {
     renderCompactHome();
 
-    const offset = screen.getByTestId("root-compose-compact-recents-offset");
-    expect(offset.style.height).toBe(`${MOBILE_RECENT_ROW_HEIGHT_PX}px`);
+    const viewport = screen.getByTestId("root-compose-compact-scroll-viewport");
+    const content = screen.getByTestId("root-compose-compact-scroll-content");
+    expect(viewport.style.top).toBe("56px");
+    expect(content.firstElementChild).toBe(
+      screen.getByTestId("root-compose-compact-leading-spacer"),
+    );
   });
 
   it("rests a list that fits on the composer instead of the band top", () => {
