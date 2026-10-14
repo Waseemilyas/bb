@@ -14,7 +14,7 @@ import {
   providerCliEntries,
   type ProviderCliIssue,
 } from "@/components/provider-cli/provider-cli-install";
-import { hasActionableReleaseUpdate } from "@/components/app-update/app-update-presentation";
+import { hasActionableNpmAppUpdate } from "@/components/app-update/app-update-presentation";
 import { useAppUpdateStatus } from "@/hooks/queries/app-update-queries";
 import { useDesktopUpdateInfo } from "@/hooks/useDesktopUpdateInfo";
 import { usePluginList } from "@/hooks/queries/plugin-settings-queries";
@@ -70,7 +70,7 @@ export function resolveAppUpdateAvailable(args: {
   isDesktop: boolean;
   systemVersion: SystemVersionResponse | undefined;
 }): boolean {
-  if (hasActionableReleaseUpdate(args.appUpdate)) return true;
+  if (hasActionableNpmAppUpdate(args.appUpdate)) return true;
   return (
     !args.isDesktop &&
     args.systemVersion !== undefined &&

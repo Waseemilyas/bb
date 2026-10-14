@@ -102,40 +102,8 @@ async function runAppImageBridgeSupervisor(
   const bridgePath = resolvePath(appDirPath, bridgeRelativePath);
   const bridgeProcess = spawnChild(process.execPath, [bridgePath], {
     env: process.env,
-    stdio: ["inherit", "inherit", "inherit", "ipc"],
+    stdio: "inherit",
   });
-  const relayMessage = (
-    message: unknown,
-    send: (message: object) => void,
-  ): void => {
-    if (
-      typeof message === "object" &&
-      message !== null &&
-      "channel" in message &&
-      typeof message.channel === "string" &&
-      message.channel.startsWith("bb-desktop-update/")
-    ) {
-      send(message);
-    }
-  };
-  process.on("message", (message: unknown) =>
-    relayMessage(message, (value) => {
-      if (bridgeProcess.connected) bridgeProcess.send(value, () => undefined);
-    }),
-  );
-  bridgeProcess.on("message", (message: unknown) =>
-    relayMessage(message, (value) => {
-      if (process.connected) process.send?.(value, () => undefined);
-    }),
-  );
-  process.on("disconnect", () => {
-    if (bridgeProcess.connected)
-      bridgeProcess.send(
-        { channel: "bb-desktop-update/disconnected" },
-        () => undefined,
-      );
-  });
-  process.channel?.unref();
   if (bridgeProcess.pid === undefined) {
     throw new Error("AppImage bridge process did not expose a PID");
   }
@@ -356,7 +324,7 @@ export function startBbAppProcess(args: StartBbAppProcessArgs): BbAppProcess {
     cwd: args.cwd,
     detached: args.runtime.kind === "appimage",
     env: launch.env,
-    stdio: ["ignore", "pipe", "pipe", "ipc"],
+    stdio: ["ignore", "pipe", "pipe"],
   });
   const pid = childProcess.pid;
   if (pid === undefined) {

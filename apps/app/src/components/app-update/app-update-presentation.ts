@@ -62,13 +62,13 @@ export function isDesktopOwnedServer(status: SystemAppUpdateStatus): boolean {
   );
 }
 
-export function hasActionableReleaseUpdate(
+export function hasActionableNpmAppUpdate(
   status: SystemAppUpdateStatus | undefined,
 ): boolean {
   return (
     status !== undefined &&
-    ((status.support.kind === "supported" && status.support.mode === "npm") ||
-      status.desktopUpdateSupported === true) &&
+    status.support.kind === "supported" &&
+    status.support.mode === "npm" &&
     status.available !== null &&
     status.blocked === null
   );

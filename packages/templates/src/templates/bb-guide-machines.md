@@ -132,10 +132,6 @@ bb updates app apply Download the update and restart bb into it
 --json Print the final status as JSON
 bb updates app dismiss Mark the last update result as seen
 
-`bb updates app apply` also updates a server hosted by the desktop app, restarting
-that hosting app through its native updater. It never updates the desktop you
-are viewing from unless that desktop hosts this server.
-
 `bb updates apply` covers provider CLIs only. `bb updates app apply` updates
 bb itself when it was started from `npx bb-app` (or a global `bb-app`) or with
 `pnpm start` from a `main` checkout, without `--no-in-app-updates`: it installs the new version next to the

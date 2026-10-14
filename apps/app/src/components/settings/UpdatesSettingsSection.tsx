@@ -932,11 +932,7 @@ export function BbAppUpdateRows({
     return row(name, settledStatus);
   }
 
-  if (
-    appUpdate !== undefined &&
-    (appUpdate.support.kind === "supported" ||
-      appUpdate.desktopUpdateSupported === true)
-  ) {
+  if (appUpdate !== undefined && appUpdate.support.kind === "supported") {
     return (
       <InAppUpdateRow
         name={rowName}
@@ -1131,8 +1127,8 @@ function InAppUpdateRow({
   if (status.blocked !== null) {
     return row(
       name,
-      ((status.support.kind === "supported" && status.support.mode === "npm") ||
-        status.desktopUpdateSupported === true) &&
+      status.support.kind === "supported" &&
+        status.support.mode === "npm" &&
         status.blocked.reason === "fetch-failed"
         ? unavailableCheckControl
         : null,
@@ -2104,8 +2100,7 @@ export function UpdatesSettingsSection({
     desktopInfo?.updateAvailable === true ||
     inventory.systemVersion?.updateAvailable === true ||
     inventory.appUpdateAvailable ||
-    ((appUpdate?.support.kind === "supported" ||
-      appUpdate?.desktopUpdateSupported === true) &&
+    (appUpdate?.support.kind === "supported" &&
       (appUpdate.available !== null ||
         appUpdate.activity.phase !== "idle" ||
         pendingAppUpdateResult(appUpdate) !== null));
@@ -2224,9 +2219,7 @@ export function UpdatesSettingsSection({
       {showChangelogPreview ? <ChangelogPreviewCard /> : null}
 
       <BbUpdatesCard>
-        {serverRunsSeparately || appUpdate?.desktopUpdateSupported === true
-          ? serverAppRow
-          : appRow}
+        {serverRunsSeparately ? serverAppRow : appRow}
         {serverRunsSeparately && desktopRowNeedsAttention(desktopInfo)
           ? desktopClientRow
           : null}

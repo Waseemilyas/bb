@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import type { ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { relayDesktopAppUpdates } from "@bb/config/desktop-app-update";
 import { spawn } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { spawnLoggedProcess } from "./logged-process.js";
@@ -4311,15 +4310,12 @@ export async function runBbApp(
                 : { beforeStart: options.beforeServerStart }),
               context,
               env: serverEnv,
-              ...(parseAppSurface(serverEnv[APP_SURFACE_ENV_NAME]) ===
-                APP_SURFACE_DESKTOP && process.send !== undefined
-                ? { onSpawned: relayDesktopAppUpdates }
-                : appUpdateController === null
-                  ? {}
-                  : {
-                      onSpawned: (childProcess: ChildProcess) =>
-                        appUpdateController.attachServer(childProcess),
-                    }),
+              ...(appUpdateController === null
+                ? {}
+                : {
+                    onSpawned: (childProcess: ChildProcess) =>
+                      appUpdateController.attachServer(childProcess),
+                  }),
               processes,
             }),
         };
