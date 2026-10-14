@@ -1688,7 +1688,6 @@ The canonical release summary.
       version: "0.0.5",
     };
     const checkForUpdates = vi.fn().mockResolvedValue(desktopInfo);
-    const installUpdate = vi.fn();
     useDesktopUpdateInfoMock.mockReturnValue({
       desktopApi: { checkForUpdates } as unknown as BbDesktopApi,
       desktopInfo,
@@ -1781,7 +1780,6 @@ The canonical release summary.
       version: "0.0.5",
     };
     const checkForUpdates = vi.fn().mockResolvedValue(desktopInfo);
-    const installUpdate = vi.fn();
     useDesktopUpdateInfoMock.mockReturnValue({
       desktopApi: { checkForUpdates } as unknown as BbDesktopApi,
       desktopInfo,
