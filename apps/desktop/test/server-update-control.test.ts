@@ -15,18 +15,21 @@ describe("hosting desktop update control", () => {
       const relayUrl = pathToFileURL(
         join(__dirname, "../../../packages/config/src/desktop-app-update.ts"),
       ).href;
+      const channelUrl = pathToFileURL(
+        join(
+          __dirname,
+          "../../server/src/services/system/desktop-update-channel.ts",
+        ),
+      ).href;
       const serverScript = `
-        process.send({ channel: "bb-desktop-update/request", requestId: "status", action: "status" });
-        process.on("message", (message) => {
-          if (message.channel !== "bb-desktop-update/response") return;
-          if (message.error !== null || message.info.version !== "1.0.0") process.exit(1);
-          if (message.requestId === "status") {
-            process.send({ channel: "bb-desktop-update/request", requestId: "install", action: "install" });
-          } else {
-            process.stdout.write("server update accepted");
-            process.exit(0);
-          }
-        });
+        import { createDesktopUpdateChannel } from ${JSON.stringify(channelUrl)};
+        const channel = createDesktopUpdateChannel(process);
+        const info = await channel.request("status");
+        if (info.version !== "1.0.0") process.exit(1);
+        await channel.request("install");
+        process.stdout.write("server update accepted");
+        channel.dispose();
+        process.disconnect();
       `;
       await writeFile(
         bridgePath,
