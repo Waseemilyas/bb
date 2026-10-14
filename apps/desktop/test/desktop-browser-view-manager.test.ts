@@ -2233,7 +2233,9 @@ describe("DesktopBrowserViewManager", () => {
           await vi.waitFor(() => expect(debuggerApi.isAttached()).toBe(true));
         }
         expect(view.webContents.getBackgroundThrottling()).toBe(false);
+        const attached = hostWindow.contentView.addedViews.slice();
         manager.setServerOrigin("https://second.example");
+        expect(hostWindow.contentView.removedViews).toEqual(attached);
         expect(view.webContents.getBackgroundThrottling()).toBe(true);
         if (owner === "automation") page.detach();
         else {
@@ -2243,6 +2245,7 @@ describe("DesktopBrowserViewManager", () => {
         expect(view.webContents.getBackgroundThrottling()).toBe(true);
         expect(view.webContents.isDestroyed()).toBe(false);
         manager.setServerOrigin("https://first.example");
+        expect(hostWindow.contentView.addedViews).toEqual([...attached, ...attached]);
         expect(view.webContents.getBackgroundThrottling()).toBe(false);
         expect(requireFakeView(0).webContents.getBackgroundThrottling()).toBe(true);
         expect(view.webContents.getURL()).toBe("https://example.com/animated");
