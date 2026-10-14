@@ -3080,7 +3080,17 @@ async function runDesktopApp(): Promise<void> {
       !app.isPackaged && process.env.BB_DESKTOP_AUTO_UPDATE === "1",
     logger: desktopLogger,
     platform: desktopPlatform,
-    updater: createElectronAutoUpdaterAdapter(autoUpdater, nativeAutoUpdater),
+    updater: createElectronAutoUpdaterAdapter(
+      autoUpdater,
+      nativeAutoUpdater,
+      process.platform === "linux" && process.env.APPIMAGE
+        ? {
+            path: process.env.APPIMAGE,
+            relaunch: (execPath) =>
+              app.relaunch({ execPath, args: process.argv.slice(1) }),
+          }
+        : null,
+    ),
   });
   desktopUpdateService.subscribe(() => {
     sendDesktopInfoChanged();

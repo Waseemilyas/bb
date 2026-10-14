@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
 import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
+import { watch } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -12,7 +13,7 @@ const qa = JSON.parse(await readFile(join(artifacts, 'qa-build.json'), 'utf8'));
 const runDir = await mkdtemp(join(root, '.update-qa-run-'));
 const dataDir = join(runDir, 'data');
 const userData = join(runDir, 'config', 'bb');
-const installed = join(runDir, 'bb.AppImage');
+const installed = join(runDir, `bb-${qa.from}-x86_64.AppImage`);
 const events = [];
 const qaRequire = createRequire(join(process.env.QA_BROWSER_DIR, 'package.json'));
 const puppeteer = qaRequire('puppeteer');
@@ -57,6 +58,8 @@ const wait = async (description, fn) => {
   throw new Error(`Timed out: ${description}; ${last ?? ''}\n${logs.slice(-20000)}`);
 };
 let runtime;
+let installWatcher;
+let stoppedAt;
 try {
   await wait('server startup', () => request('/health'));
   runtime = JSON.parse(await readFile(join(userData, 'owned-runtime.json'), 'utf8'));
@@ -124,6 +127,13 @@ try {
   await failUpdate('native-installer-failure','EISDIR');
   await rm(installed,{recursive:true});
   await rename(`${installed}.saved`,installed);
+  installWatcher = watch(runDir,(event,filename)=> {
+    if (filename !== basename(installed) || stoppedAt !== undefined) return;
+    process.kill(runtime.pid,'SIGSTOP');
+    stoppedAt = Date.now();
+    events.push({slowShutdownPid:runtime.pid,stoppedAt});
+    installWatcher.close();
+  });
   const applyResponse = page.waitForResponse(response=>new URL(response.url()).pathname === '/api/v1/system/app-update/apply',{timeout:30000});
   await page.click(updateSelector);
   const response = await applyResponse;
@@ -138,6 +148,8 @@ try {
   });
   const newRuntime = JSON.parse(await readFile(join(userData, 'owned-runtime.json'), 'utf8'));
   assert.notEqual(newRuntime.pid, runtime.pid);
+  assert.ok(stoppedAt !== undefined);
+  assert.ok(Date.now()-stoppedAt >= 4000, "The owned runtime shutdown was not delayed");
   assert.equal(result.lastResult.from.version, qa.from);
   assert.equal(result.lastResult.to.version, qa.to);
   assert.equal(result.desktopUpdateSupported, true);
@@ -151,6 +163,7 @@ try {
   events.push({ after: result, newRuntimePid: newRuntime.pid, afterText, pageErrors });
   console.log(`PASS: window-state failure, native installer failure, persisted errors and UI retry through AppImage update ${qa.from} -> ${qa.to}; native replacement, server restart, persisted result, acknowledgment.`);
 } finally {
+  installWatcher?.close();
   if (page) {
     try {
       events.push({finalUrl:page.url(),finalText:await page.evaluate(()=>document.body.innerText),buttons:await page.$$eval('button',buttons=>buttons.map(button=>({label:button.getAttribute('aria-label'),text:button.innerText})))});
