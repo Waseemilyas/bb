@@ -83,7 +83,7 @@ try {
   await page.goto('http://127.0.0.1:24792/settings/updates', {waitUntil:'domcontentloaded',timeout:60000});
   events.push({systemVersion:await request('/api/v1/system/version'),initialUrl:page.url(),initialText:await page.evaluate(()=>document.body.innerText)});
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(button=>button.innerText==='Skip setup'),{timeout:30000});
-  await page.locator('button').filter(button=>button.innerText==='Skip setup').click();
+  await page.locator('button::-p-text(Skip setup)').click();
   await page.waitForFunction(()=>![...document.querySelectorAll('button')].some(button=>button.innerText==='Skip setup'),{timeout:30000});
   await page.goto('http://127.0.0.1:24792/settings/updates',{waitUntil:'domcontentloaded',timeout:60000});
   const updateSelector = '[aria-label$="Download the update and restart bb"]';
