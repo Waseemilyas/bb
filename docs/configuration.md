@@ -238,24 +238,19 @@ and `bb-app stop` stops the managing launcher. If threads start while an update
 downloads and you did not agree to interrupt threads, bb cancels the restart and
 asks you to update again.
 
-Settings → Updates shows the server's own version in the **Server** row,
-including when another desktop app hosts it. Desktop-hosted servers update
-through the desktop app on the server machine. When the viewing desktop runs
-on another machine and needs attention, a separate **Desktop** row shows its
-own update controls. `pnpm dev`, `bb-server`, and a standalone `bb-host-daemon`
-do not offer in-app updates. Updating restarts bb and interrupts running
-threads; the app and CLI ask first.
-
-The same desktop-hosted server update is available through `bb updates app apply`
-and `sdk.system.applyAppUpdate`. The hosting desktop downloads and installs the
-release with its native updater. The server asks before interrupting running
-threads, checks again after downloading, and persists the result across restart.
+Settings → Updates shows the **Server** row for both standalone servers and servers
+hosted by the desktop app. **Update** downloads the release and restarts the
+server, using the hosting desktop's native updater when applicable. It asks
+before interrupting running threads and checks again when the download finishes.
+A separate **Desktop** row appears when the viewing desktop needs attention and
+is not the desktop hosting the server. The same server update is available with
+`bb updates app apply` and `sdk.system.applyAppUpdate`.
 
 Desktop update capability is an additive `desktopUpdateSupported: true` field in
 `SystemAppUpdateStatus`. The legacy `support` value remains
 `{ kind: "unsupported", reason: "desktop" }`, so previously shipped clients can
-still parse the response and keep their existing desktop update path. The CLI and SDK
-use the capability to update the hosting desktop. Older hosting desktops
+still parse the response and keep their existing desktop update path. New clients
+use the capability to offer the shared server controls. Older hosting desktops
 without this capability still need their local update controls. Desktop/server
 IPC stays within the bundled process tree and does not change the host-daemon
 protocol.
