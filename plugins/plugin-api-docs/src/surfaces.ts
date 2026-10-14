@@ -1376,11 +1376,12 @@ export const SURFACE_GROUPS: SurfaceGroup[] = [
         id: "plugin-experimental-status",
         title: "Experimental plugins",
         summary:
-          "Declares experimental status separately from a plugin’s display name. With this, a plugin can:",
+          "Add an Experimental badge to a plugin without changing its name. With this, a plugin can:",
         bullets: [
-          "Set bb.experimental to true in package.json to show an Experimental badge on installed plugin cards and details; omit it or set false for no badge",
-          "Set experimental to true on a marketplace entry to show the badge before installation; BB Official entries inherit the plugin manifest value",
-          "Read experimental through sdk.plugins.list(), sdk.plugins.catalog.search(), bb plugin list --json, or bb plugin catalog search --json",
+          "Set bb.experimental to true in package.json to show the badge on cards and details",
+          "Omit it or set it to false to show no badge",
+          "Show the badge before install with experimental on a marketplace entry; BB Official inherits it",
+          "Read the flag from bb plugin list --json and bb plugin catalog search --json",
         ],
         apiSymbols: [
           "PluginPackageJson.bb.experimental",
