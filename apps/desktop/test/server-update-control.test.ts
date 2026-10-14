@@ -7,9 +7,13 @@ import { attachServerUpdateControl } from "../src/server-update-control.js";
 import { startBbAppProcess } from "../src/bb-process.js";
 
 describe("hosting desktop update control", () => {
-  it.each(["direct", ...(process.platform === "linux" ? ["appimage"] : [])])(
-    "updates the hosting app through the server and launcher IPC (%s)",
-    async (runtimeKind) => {
+  it.each(
+    ["direct", ...(process.platform === "linux" ? ["appimage"] : [])].flatMap(
+      (runtimeKind) => [false, true].map((failFirst) => ({ runtimeKind, failFirst })),
+    ),
+  )(
+    "updates through launcher IPC ($runtimeKind, fail first: $failFirst)",
+    async ({ runtimeKind, failFirst }) => {
       const root = await mkdtemp(join(tmpdir(), "bb-desktop-control-"));
       const bridgePath = join(root, "bridge.mjs");
       const relayUrl = pathToFileURL(
@@ -23,9 +27,13 @@ describe("hosting desktop update control", () => {
       ).href;
       const serverScript = `
         import { createDesktopUpdateChannel } from ${JSON.stringify(channelUrl)};
+        import assert from "node:assert/strict";
         const channel = createDesktopUpdateChannel(process);
         const info = await channel.request("status");
         if (info.version !== "1.0.0") process.exit(1);
+        if (${failFirst}) {
+          await assert.rejects(channel.request("install"), /Installer failed/);
+        }
         await channel.request("install");
         process.stdout.write("server update accepted");
         channel.dispose();
@@ -61,6 +69,7 @@ describe("hosting desktop update control", () => {
               },
       });
       const install = vi.fn(async () => undefined);
+      if (failFirst) install.mockRejectedValueOnce(new Error("Installer failed"));
       const onError = vi.fn();
       attachServerUpdateControl({
         child: child.childProcess,
@@ -82,8 +91,7 @@ describe("hosting desktop update control", () => {
         const exit = await child.exit;
         expect(exit, child.logs.text()).toMatchObject({ code: 0 });
         expect(child.logs.text()).toContain("server update accepted");
-        expect(install).toHaveBeenCalledOnce();
-        expect(onError).not.toHaveBeenCalled();
+        expect(install).toHaveBeenCalledTimes(failFirst ? 2 : 1);
       } finally {
         await child.stop({
           signal: "SIGTERM",
