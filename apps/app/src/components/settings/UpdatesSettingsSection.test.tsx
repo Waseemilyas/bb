@@ -2438,8 +2438,8 @@ The canonical release summary.
       expect(within(bbCard).getByText("0.0.4")).toBeDefined();
       expect(within(bbCard).queryByText("Desktop")).toBeNull();
       expect(
-        within(bbCard).getByText("Update bb in the desktop app on bee."),
-      ).toBeDefined();
+        within(bbCard).queryByText(/Update bb in the desktop app on/),
+      ).toBeNull();
       expect(
         within(bbCard).queryByRole("button", {
           name: /Copy the upgrade command|Relaunch bb|Download the update/,

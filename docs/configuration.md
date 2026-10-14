@@ -239,8 +239,7 @@ downloads and you did not agree to interrupt threads, bb cancels the restart and
 asks you to update again.
 
 Settings → Updates shows the server's own version in the **Server** row,
-including when another desktop app hosts it. Desktop-hosted servers update
-through the desktop app on the server machine. When the viewing desktop runs
+including when another desktop app hosts it. When the viewing desktop runs
 on another machine and needs attention, a separate **Desktop** row shows its
 own update controls. `pnpm dev`, `bb-server`, and a standalone `bb-host-daemon`
 do not offer in-app updates. Updating restarts bb and interrupts running
