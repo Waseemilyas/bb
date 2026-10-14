@@ -1835,13 +1835,13 @@ async function applyServerTarget(): Promise<void> {
   serverTargetGeneration += 1;
   const generation = serverTargetGeneration;
   const isCurrent = (): boolean => serverTargetGeneration === generation;
+  desktopBrowserBrokerClient?.suspend();
   for (const window of BrowserWindow.getAllWindows()) {
     if (applicationWindowWebContentsIds.has(window.webContents.id))
       desktopBrowserViewManager?.prepareWindowReload(window);
   }
   await loadLoadingView();
   if (!isCurrent()) return;
-  desktopBrowserBrokerClient?.reconnect();
   if (serverTargetStore.getTarget().kind === "builtin") {
     await activateLocalServerMoveIfLocked();
     if (!isCurrent()) {
@@ -1849,6 +1849,7 @@ async function applyServerTarget(): Promise<void> {
     }
   }
   const target = serverTargetStore.getTarget();
+  desktopBrowserBrokerClient?.reconnect();
 
   if (target.kind === "builtin") {
     startServerMovedWatcher();
