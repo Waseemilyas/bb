@@ -17,6 +17,7 @@ const events = [];
 const qaRequire = createRequire(join(process.env.QA_BROWSER_DIR, 'package.json'));
 const puppeteer = qaRequire('puppeteer');
 let browser;
+let page;
 const feed = createServer(async (req, res) => {
   const path = basename(new URL(req.url, qa.feed).pathname);
   events.push({ request: path });
@@ -71,7 +72,7 @@ try {
   const buildId = await browsers.resolveBuildId(browsers.Browser.CHROME,platform,'stable');
   const chrome = await browsers.install({browser:browsers.Browser.CHROME,buildId,platform,cacheDir:join(runDir,'chrome')});
   browser = await puppeteer.launch({executablePath:chrome.executablePath,headless:true,args:['--no-sandbox']});
-  const page = await browser.newPage();
+  page = await browser.newPage();
   await page.setViewport({width:1440,height:900,deviceScaleFactor:2});
   const applyRequests = [];
   const pageErrors = [];
@@ -80,6 +81,7 @@ try {
     if (new URL(request.url()).pathname === '/api/v1/system/app-update/apply') applyRequests.push(JSON.parse(request.postData()));
   });
   await page.goto('http://127.0.0.1:24792/settings/updates', {waitUntil:'domcontentloaded',timeout:60000});
+  events.push({systemVersion:await request('/api/v1/system/version'),initialUrl:page.url(),initialText:await page.evaluate(()=>document.body.innerText)});
   const updateSelector = '[aria-label$="Download the update and restart bb"]';
   await page.waitForSelector(updateSelector,{visible:true,timeout:60000});
   const beforeText = await page.$eval('[data-updates-domain="bb"]', element=>element.innerText);
@@ -113,6 +115,13 @@ try {
   events.push({ after: result, newRuntimePid: newRuntime.pid, afterText, pageErrors });
   console.log(`PASS: real Updates page click through AppImage update ${qa.from} -> ${qa.to}; native replacement, server restart, persisted result, acknowledgment.`);
 } finally {
+  if (page) {
+    try {
+      events.push({finalUrl:page.url(),finalText:await page.evaluate(()=>document.body.innerText),buttons:await page.$$eval('button',buttons=>buttons.map(button=>({label:button.getAttribute('aria-label'),text:button.innerText})))});
+      await page.screenshot({path:join(artifacts,'native-ui-final.png'),type:'png'});
+    } catch (error) { events.push({captureError:String(error)}); }
+  }
+
   await writeFile(join(artifacts, 'qa-result.json'), JSON.stringify({ head: qa.head, events }, null, 2));
   await writeFile(join(artifacts, 'qa-desktop.log'), logs);
   if (browser) await browser.close();
