@@ -424,7 +424,7 @@ describe("ThreadPromptContextBanner", () => {
     expect(markup).not.toContain("animate-shine font-medium");
   });
 
-  it("summarizes additional active child threads", () => {
+  it("summarizes the total active child threads", () => {
     const markup = renderToStaticMarkup(
       <MemoryRouter>
         <ThreadPromptContextBanner
@@ -459,7 +459,7 @@ describe("ThreadPromptContextBanner", () => {
     expect(markup).toContain(
       "2 active child threads: Investigate failing checks",
     );
-    expect(markup).toContain(">+1<");
+    expect(markup).toContain(">2<");
   });
 
   it("lets combined child and context cards shrink inside the composer stack", () => {

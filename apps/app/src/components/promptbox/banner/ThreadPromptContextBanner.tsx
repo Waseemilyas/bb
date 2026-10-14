@@ -698,7 +698,6 @@ function ActiveChildThreadsCard({
   const pendingCount = items.filter(
     (item) => item.hasPendingInteraction,
   ).length;
-  const otherCount = items.length - 1;
   const groupLabel = childThreadsLabel({
     count: items.length,
     pendingCount,
@@ -748,8 +747,8 @@ function ActiveChildThreadsCard({
               inline
             />
           </span>
-          {otherCount > 0 ? (
-            <PromptStackCountSlot count={otherCount} />
+          {items.length > 1 ? (
+            <PromptStackCountSlot count={items.length} />
           ) : (
             <PromptStackHoverChevron isExpanded={isExpanded} />
           )}
