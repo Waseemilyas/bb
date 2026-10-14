@@ -1,6 +1,7 @@
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { attachServerUpdateControl } from "../src/server-update-control.js";
 import { startBbAppProcess } from "../src/bb-process.js";
@@ -11,9 +12,8 @@ describe("hosting desktop update control", () => {
     async (runtimeKind) => {
       const root = await mkdtemp(join(tmpdir(), "bb-desktop-control-"));
       const bridgePath = join(root, "bridge.mjs");
-      const relayUrl = new URL(
-        "../../../packages/config/src/desktop-app-update.ts",
-        import.meta.url,
+      const relayUrl = pathToFileURL(
+        join(__dirname, "../../../packages/config/src/desktop-app-update.ts"),
       ).href;
       const serverScript = `
         process.send({ channel: "bb-desktop-update/request", requestId: "status", action: "status" });

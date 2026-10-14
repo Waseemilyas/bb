@@ -135,6 +135,7 @@ async function runAppImageBridgeSupervisor(
         () => undefined,
       );
   });
+  process.channel?.unref();
   if (bridgeProcess.pid === undefined) {
     throw new Error("AppImage bridge process did not expose a PID");
   }
