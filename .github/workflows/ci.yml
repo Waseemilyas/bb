@@ -800,8 +800,12 @@ jobs:
         if: ${{ runner.os == 'Linux' && github.event_name == 'workflow_dispatch' }}
         run: node apps/desktop/scripts/temporary-update-qa-fixtures.mjs
 
-      - name: Upload isolated desktop update QA artifacts
+      - name: Exercise real desktop server update
         if: ${{ runner.os == 'Linux' && github.event_name == 'workflow_dispatch' }}
+        run: xvfb-run -a node apps/desktop/scripts/temporary-update-qa-run.mjs
+
+      - name: Upload isolated desktop update QA artifacts
+        if: ${{ always() && runner.os == 'Linux' && github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: desktop-update-qa
