@@ -2420,4 +2420,45 @@ The canonical release summary.
       }),
     ).toBeNull();
   });
+
+  it.each(["host_laptop", null])(
+    "shows a desktop-hosted server's own version when the viewing host is %s",
+    async (localHostId) => {
+      const { checkForUpdates } = useDesktopApp();
+      hostDaemon.localDaemonHostId = localHostId;
+      const inventory = desktopFleet();
+      const serverVersion = {
+        ...inventory.systemVersion!,
+        currentVersion: "0.0.4",
+        updateAvailable: true,
+      };
+      useUpdateInventoryMock.mockReturnValue(
+        makeInventory({ ...inventory, systemVersion: serverVersion }),
+      );
+      vi.mocked(sdk.system.version).mockResolvedValue(serverVersion);
+      vi.mocked(sdk.system.appUpdate).mockResolvedValue(
+        makeAppUpdateStatus({
+          current: { commit: null, version: "0.0.4" },
+          support: { kind: "unsupported", reason: "desktop" },
+        }),
+      );
+
+      renderSection();
+
+      const bbCard = screen.getByRole("region", { name: "bb" });
+      await waitFor(() => expect(checkForUpdates).toHaveBeenCalledOnce());
+      expect(within(bbCard).getByText("Server")).toBeDefined();
+      expect(within(bbCard).getByText("0.0.4")).toBeDefined();
+      expect(within(bbCard).queryByText("Desktop")).toBeNull();
+      expect(
+        within(bbCard).getByText("Update bb in the desktop app on bee."),
+      ).toBeDefined();
+      expect(
+        within(bbCard).queryByRole("button", {
+          name: /Copy the upgrade command|Relaunch bb|Download the update/,
+        }),
+      ).toBeNull();
+      expect(sdk.system.version).toHaveBeenCalledWith({ force: true });
+    },
+  );
 });
