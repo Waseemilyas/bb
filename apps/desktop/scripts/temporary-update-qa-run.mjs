@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
-import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -83,22 +83,54 @@ try {
   await page.goto('http://127.0.0.1:24792/settings/updates', {waitUntil:'domcontentloaded',timeout:60000});
   events.push({systemVersion:await request('/api/v1/system/version'),initialUrl:page.url(),initialText:await page.evaluate(()=>document.body.innerText)});
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(button=>button.innerText==='Skip setup'),{timeout:30000});
+  const onboardingSaved = page.waitForResponse(response=>new URL(response.url()).pathname === '/api/v1/settings/general' && response.request().method() === 'PUT');
   await page.locator('button::-p-text(Skip setup)').click();
+  assert.equal((await onboardingSaved).status(),200);
   await page.waitForFunction(()=>![...document.querySelectorAll('button')].some(button=>button.innerText==='Skip setup'),{timeout:30000});
-  await page.goto('http://127.0.0.1:24792/settings/updates',{waitUntil:'domcontentloaded',timeout:60000});
   const updateSelector = '[aria-label$="Download the update and restart bb"]';
   await page.waitForSelector(updateSelector,{visible:true,timeout:60000});
   const beforeText = await page.$eval('[data-updates-domain="bb"]', element=>element.innerText);
   assert.ok(beforeText.includes('Server'), beforeText);
   assert.ok(beforeText.includes(qa.from), beforeText);
   assert.ok(beforeText.includes(qa.to), beforeText);
+  const failUpdate = async (name, message) => {
+    const response = page.waitForResponse(response=>new URL(response.url()).pathname === '/api/v1/system/app-update/apply');
+    await page.click(updateSelector);
+    assert.equal((await response).status(),200);
+    const failed = await wait(name, async()=> {
+      const result = await request('/api/v1/system/app-update');
+      return result.activity.phase === 'idle' && result.lastResult?.message?.includes(message) ? result : false;
+    });
+    assert.equal(failed.lastResult.outcome,'failed');
+    assert.equal(failed.lastResult.phase,'install');
+    const persisted = JSON.parse(await readFile(join(dataDir,'bb-desktop-app-update.json'),'utf8'));
+    assert.equal(persisted.pending,null);
+    assert.equal(persisted.lastResult.id,failed.lastResult.id);
+    assert.equal(JSON.parse(await readFile(join(userData,'owned-runtime.json'),'utf8')).pid,runtime.pid);
+    await page.reload({waitUntil:'domcontentloaded'});
+    await page.waitForSelector(updateSelector,{visible:true,timeout:30000});
+    const failureText = await page.$eval('[data-updates-domain="bb"]',element=>element.innerText);
+    assert.ok(failureText.includes('Last update failed'),failureText);
+    await page.screenshot({path:join(artifacts,`native-${name}.png`),type:'png'});
+    events.push({failure:name,status:failed,text:failureText});
+  };
+  const windowState = join(userData,'window-state.json');
+  await rm(windowState,{force:true});
+  await mkdir(windowState);
+  await failUpdate('window-state-failure','EISDIR');
+  await rm(windowState,{recursive:true});
+  await rename(installed,`${installed}.saved`);
+  await mkdir(installed);
+  await failUpdate('native-installer-failure','EISDIR');
+  await rm(installed,{recursive:true});
+  await rename(`${installed}.saved`,installed);
   const applyResponse = page.waitForResponse(response=>new URL(response.url()).pathname === '/api/v1/system/app-update/apply',{timeout:30000});
   await page.click(updateSelector);
   const response = await applyResponse;
   assert.equal(response.status(),200);
   const started = await response.json();
   assert.notEqual(started.activity.phase,'idle');
-  assert.deepEqual(applyRequests,[{confirmInterruptingThreads:false}]);
+  assert.deepEqual(applyRequests,Array.from({length:3},()=>({confirmInterruptingThreads:false})));
   events.push({browser:await browser.version(),beforeText,applyRequests,started,pageErrors});
   const result = await wait('updated server and persisted result after native install', async () => {
     const status = await request('/api/v1/system/app-update');
@@ -117,7 +149,7 @@ try {
   assert.ok(!afterText.includes(qa.from),afterText);
   assert.ok(afterText.includes('Server'),afterText);
   events.push({ after: result, newRuntimePid: newRuntime.pid, afterText, pageErrors });
-  console.log(`PASS: real Updates page click through AppImage update ${qa.from} -> ${qa.to}; native replacement, server restart, persisted result, acknowledgment.`);
+  console.log(`PASS: window-state failure, native installer failure, persisted errors and UI retry through AppImage update ${qa.from} -> ${qa.to}; native replacement, server restart, persisted result, acknowledgment.`);
 } finally {
   if (page) {
     try {
