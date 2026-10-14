@@ -162,6 +162,32 @@ describe("desktop-hosted server updates", () => {
     ).resolves.toMatchObject({ activity: { phase: "preparing" } });
   });
 
+  it("keeps confirmed update support after a timeout and accepts a successful retry", async () => {
+    const { service, channel } = await fixture();
+    await service.getStatus({ forceRefresh: true });
+    const request = vi.spyOn(channel, "request");
+    request.mockRejectedValue(new Error("The desktop app did not respond."));
+
+    expect(await service.getStatus({ forceRefresh: true })).toMatchObject({
+      desktopUpdateSupported: true,
+      blocked: { reason: "fetch-failed" },
+    });
+    await expect(
+      service.apply({ confirmInterruptingThreads: false }),
+    ).rejects.toMatchObject({ body: { code: "app_update_blocked" } });
+    expect(channel.requests).not.toContain("install");
+
+    request.mockRestore();
+    expect(await service.getStatus({ forceRefresh: true })).toMatchObject({
+      desktopUpdateSupported: true,
+      blocked: null,
+      available: { version: "1.1.0" },
+    });
+    await expect(
+      service.apply({ confirmInterruptingThreads: false }),
+    ).resolves.toMatchObject({ activity: { phase: "preparing" } });
+  });
+
   it("does not offer an update action when the native updater cannot install", async () => {
     const { service, channel } = await fixture();
     channel.push({ supported: false });
