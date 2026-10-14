@@ -34,17 +34,16 @@ export function attachServerUpdateControl(args: {
       ) {
         throw new Error("The update is not ready to install.");
       }
+      if (request.action === "install") await args.install();
       send({
         channel: "bb-desktop-update/response",
         requestId: request.requestId,
         error: null,
         info,
       });
-      if (request.action === "install") {
-        void args.install().catch(args.onError);
-      }
     };
     void respond().catch((error: unknown) => {
+      args.onError(error);
       send({
         channel: "bb-desktop-update/response",
         requestId: request.requestId,

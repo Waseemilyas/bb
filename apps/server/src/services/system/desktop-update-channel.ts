@@ -75,7 +75,7 @@ export function createDesktopUpdateChannel(
             pending.delete(requestId);
             reject(new Error("The desktop app did not respond."));
           },
-          action === "check" ? 180_000 : 15_000,
+          action === "status" ? 15_000 : 180_000,
         );
         pending.set(requestId, { resolve, reject, timer });
         const fail = (error: Error | null): void => {

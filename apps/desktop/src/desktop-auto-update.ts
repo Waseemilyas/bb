@@ -1,3 +1,4 @@
+import type { EventEmitter } from "node:events";
 import type {
   AppUpdater,
   UpdateCheckResult,
@@ -42,7 +43,7 @@ export interface DesktopAutoUpdaterAdapter {
   onUpdateAvailable(handler: DesktopAutoUpdateAvailableHandler): void;
   onUpdateDownloaded(handler: DesktopAutoUpdateDownloadedHandler): void;
   onUpdateNotAvailable(handler: DesktopAutoUpdateNotAvailableHandler): void;
-  quitAndInstall(): void;
+  quitAndInstall(): Promise<void>;
   setAutoDownload(enabled: boolean): void;
   setAutoInstallOnAppQuit(enabled: boolean): void;
   setFeedURL(config: DesktopAutoUpdateFeedConfig): void;
@@ -81,7 +82,7 @@ interface ApplyUpdateNotAvailableArgs {
 }
 
 export interface DesktopAutoUpdateService extends DesktopUpdateService {
-  installUpdate(): void;
+  installUpdate(): Promise<void>;
 }
 
 function createBaseInfo(
@@ -118,7 +119,9 @@ export function shouldEnableDesktopAutoUpdate(
 
 export function createElectronAutoUpdaterAdapter(
   updater: AppUpdater,
+  nativeUpdater: Pick<EventEmitter, "on" | "off">,
 ): DesktopAutoUpdaterAdapter {
+  let installInFlight: Promise<void> | null = null;
   return {
     checkForUpdates() {
       return updater.checkForUpdates();
@@ -141,7 +144,32 @@ export function createElectronAutoUpdaterAdapter(
       updater.on("update-not-available", handler);
     },
     quitAndInstall() {
-      updater.quitAndInstall();
+      if (installInFlight !== null) return installInFlight;
+      installInFlight = new Promise<void>((resolve, reject) => {
+        const cleanup = (): void => {
+          updater.off("error", onError);
+          nativeUpdater.off("before-quit-for-update", onQuit);
+        };
+        const onError = (error: Error): void => {
+          cleanup();
+          reject(error);
+        };
+        const onQuit = (): void => {
+          cleanup();
+          resolve();
+        };
+        updater.on("error", onError);
+        nativeUpdater.on("before-quit-for-update", onQuit);
+        try {
+          updater.quitAndInstall();
+        } catch (error) {
+          cleanup();
+          reject(error);
+        }
+      }).finally(() => {
+        installInFlight = null;
+      });
+      return installInFlight;
     },
     setAutoDownload(enabled) {
       updater.autoDownload = enabled;
@@ -335,14 +363,14 @@ export function createDesktopAutoUpdateService(
 
   return {
     ...scheduler,
-    installUpdate(): void {
+    async installUpdate(): Promise<void> {
       if (!scheduler.getInfo().updateDownloaded) {
         args.logger.warn(
           "Desktop auto-update install requested before an update was downloaded; ignoring.",
         );
         return;
       }
-      args.updater.quitAndInstall();
+      await args.updater.quitAndInstall();
     },
   };
 }
