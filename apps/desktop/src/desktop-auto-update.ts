@@ -120,6 +120,7 @@ export function shouldEnableDesktopAutoUpdate(
 export function createElectronAutoUpdaterAdapter(
   updater: AppUpdater,
   nativeUpdater: Pick<EventEmitter, "on" | "off">,
+  appImage: { path: string; relaunch: (path: string) => void } | null,
 ): DesktopAutoUpdaterAdapter {
   let installInFlight: Promise<void> | null = null;
   return {
@@ -146,8 +147,13 @@ export function createElectronAutoUpdaterAdapter(
     quitAndInstall() {
       if (installInFlight !== null) return installInFlight;
       installInFlight = new Promise<void>((resolve, reject) => {
+        let replacementPath = appImage?.path ?? null;
+        const onFilename = (path: unknown): void => {
+          if (typeof path === "string") replacementPath = path;
+        };
         const cleanup = (): void => {
           updater.off("error", onError);
+          updater.off("appimage-filename-updated", onFilename);
           nativeUpdater.off("before-quit-for-update", onQuit);
         };
         const onError = (error: Error): void => {
@@ -156,12 +162,18 @@ export function createElectronAutoUpdaterAdapter(
         };
         const onQuit = (): void => {
           cleanup();
+          if (appImage !== null && replacementPath !== null) {
+            appImage.relaunch(replacementPath);
+          }
           resolve();
         };
         updater.on("error", onError);
+        if (appImage !== null)
+          updater.on("appimage-filename-updated", onFilename);
         nativeUpdater.on("before-quit-for-update", onQuit);
         try {
-          updater.quitAndInstall();
+          if (appImage === null) updater.quitAndInstall();
+          else updater.quitAndInstall(true, false);
         } catch (error) {
           cleanup();
           reject(error);
