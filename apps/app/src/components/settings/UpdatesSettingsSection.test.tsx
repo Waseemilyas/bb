@@ -1688,6 +1688,7 @@ The canonical release summary.
       version: "0.0.5",
     };
     const checkForUpdates = vi.fn().mockResolvedValue(desktopInfo);
+    const installUpdate = vi.fn();
     useDesktopUpdateInfoMock.mockReturnValue({
       desktopApi: { checkForUpdates } as unknown as BbDesktopApi,
       desktopInfo,
@@ -1780,6 +1781,7 @@ The canonical release summary.
       version: "0.0.5",
     };
     const checkForUpdates = vi.fn().mockResolvedValue(desktopInfo);
+    const installUpdate = vi.fn();
     useDesktopUpdateInfoMock.mockReturnValue({
       desktopApi: { checkForUpdates } as unknown as BbDesktopApi,
       desktopInfo,
@@ -2279,7 +2281,10 @@ The canonical release summary.
     },
   );
 
-  function useDesktopApp(): { checkForUpdates: ReturnType<typeof vi.fn> } {
+  function useDesktopApp(): {
+    checkForUpdates: ReturnType<typeof vi.fn>;
+    installUpdate: ReturnType<typeof vi.fn>;
+  } {
     const desktopInfo: BbDesktopInfo = {
       downloadState: "idle",
       lastCheckedAt: null,
@@ -2291,15 +2296,16 @@ The canonical release summary.
       version: "0.0.5",
     };
     const checkForUpdates = vi.fn().mockResolvedValue(desktopInfo);
+    const installUpdate = vi.fn();
     useDesktopUpdateInfoMock.mockReturnValue({
       desktopApi: {
         checkForUpdates,
-        installUpdate: vi.fn(),
+        installUpdate,
       } as unknown as BbDesktopApi,
       desktopInfo,
       isDesktop: true,
     });
-    return { checkForUpdates };
+    return { checkForUpdates, installUpdate };
   }
 
   function desktopFleet(): UpdateInventory {
@@ -2460,6 +2466,34 @@ The canonical release summary.
         }),
       ).toBeNull();
       expect(sdk.system.version).toHaveBeenCalledWith({ force: true });
+    },
+  );
+  it.each(["host_primary", "host_laptop", null])(
+    "uses the shared server update action for a desktop-hosted server viewed from %s",
+    async (localHostId) => {
+      const { installUpdate } = useDesktopApp();
+      hostDaemon.localDaemonHostId = localHostId;
+      useUpdateInventoryMock.mockReturnValue(desktopFleet());
+      const status = makeAppUpdateStatus({
+        support: { kind: "unsupported", reason: "desktop" },
+        desktopUpdateSupported: true,
+      });
+      vi.mocked(sdk.system.appUpdate).mockResolvedValue(status);
+      vi.mocked(sdk.system.applyAppUpdate).mockResolvedValue(status);
+      renderSection();
+      const update = await screen.findByRole("button", {
+        name: "Update available · Download the update and restart bb",
+      });
+      expect(screen.getByText("Server")).toBeDefined();
+      expect(screen.queryByText("Desktop")).toBeNull();
+      expect(screen.queryByText(/Update bb in the desktop app on/)).toBeNull();
+      fireEvent.click(update);
+      await waitFor(() =>
+        expect(sdk.system.applyAppUpdate).toHaveBeenCalledWith({
+          confirmInterruptingThreads: false,
+        }),
+      );
+      expect(installUpdate).not.toHaveBeenCalled();
     },
   );
 });

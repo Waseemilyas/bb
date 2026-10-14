@@ -112,6 +112,8 @@ worktree` only; a provider takes its branch through `--environment-inputs`.
   Updates. `bb updates apply [--machine <id-or-name>]` runs every available
   provider CLI install/update sequentially. `bb updates app` shows whether bb
   can update itself, which it cannot when started with `--no-in-app-updates`;
+  Servers hosted by the desktop app use the same server update commands; the
+  hosting desktop installs the release and restarts.
   `bb updates app apply [--yes] [--no-wait]` downloads the
   update and restarts bb into it, without rolling back if it fails to start.
   Running it from a thread restarts bb and interrupts that thread.
