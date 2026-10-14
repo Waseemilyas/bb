@@ -10,7 +10,7 @@ const artifacts = join(root, 'release/update-qa');
 const qa = JSON.parse(await readFile(join(artifacts, 'qa-build.json'), 'utf8'));
 const runDir = await mkdtemp(join(root, '.update-qa-run-'));
 const dataDir = join(runDir, 'data');
-const userData = join(runDir, 'desktop');
+const userData = join(runDir, 'config', 'bb');
 const installed = join(runDir, 'bb.AppImage');
 const events = [];
 const feed = createServer(async (req, res) => {
@@ -30,11 +30,11 @@ await new Promise(resolve => feed.listen(24791, '127.0.0.1', resolve));
 await mkdir(dataDir);
 await copyFile(join(artifacts, `bb-${qa.from}-x86_64.AppImage`), installed);
 await chmod(installed, 0o755);
-const env = { ...process.env, BB_DATA_DIR: dataDir, BB_SERVER_PORT: '24792', BB_HOST_DAEMON_PORT: '24793', BB_TELEMETRY: 'false', BB_DESKTOP_OPEN_DEVTOOLS: '0', XDG_CACHE_HOME: join(runDir, 'cache') };
+const env = { ...process.env, BB_DATA_DIR: dataDir, XDG_CONFIG_HOME: join(runDir, 'config'), BB_SERVER_PORT: '24792', BB_HOST_DAEMON_PORT: '24793', BB_TELEMETRY: 'false', BB_DESKTOP_OPEN_DEVTOOLS: '0', XDG_CACHE_HOME: join(runDir, 'cache') };
 delete env.APPIMAGE_EXTRACT_AND_RUN;
 delete env.BB_DESKTOP_APP_URL;
 delete env.ELECTRON_RUN_AS_NODE;
-const child = spawn(installed, ['--no-sandbox', `--user-data-dir=${userData}`], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+const child = spawn(installed, ['--no-sandbox'], { env, stdio: ['ignore', 'pipe', 'pipe'] });
 let logs = '';
 for (const stream of [child.stdout, child.stderr]) stream.on('data', chunk => { logs += chunk; });
 const request = async (path, body) => {

@@ -796,23 +796,6 @@ jobs:
         if: ${{ runner.os == 'Linux' }}
         run: pnpm exec turbo run desktop:build:linux --filter=@bb/desktop --cache-dir="${TURBO_CACHE_DIR:-.turbo/cache}" --output-logs=new-only --summarize
 
-      - name: Prepare isolated desktop update QA artifacts
-        if: ${{ runner.os == 'Linux' && github.event_name == 'workflow_dispatch' }}
-        run: node apps/desktop/scripts/temporary-update-qa-fixtures.mjs
-
-      - name: Exercise real desktop server update
-        if: ${{ runner.os == 'Linux' && github.event_name == 'workflow_dispatch' }}
-        run: xvfb-run -a node apps/desktop/scripts/temporary-update-qa-run.mjs
-
-      - name: Upload isolated desktop update QA artifacts
-        if: ${{ always() && runner.os == 'Linux' && github.event_name == 'workflow_dispatch' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: desktop-update-qa
-          path: apps/desktop/release/update-qa/
-          compression-level: 0
-          retention-days: 3
-
       - name: Smoke Linux AppImage mount lifecycle
         if: ${{ runner.os == 'Linux' }}
         run: xvfb-run -a pnpm exec turbo run smoke:appimage-lifecycle --filter=@bb/desktop --force --cache-dir="${TURBO_CACHE_DIR:-.turbo/cache}" --output-logs=new-only
