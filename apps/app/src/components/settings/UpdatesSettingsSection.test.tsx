@@ -1673,7 +1673,7 @@ The canonical release summary.
     await waitFor(() => {
       expect(checkForUpdates).toHaveBeenCalledTimes(1);
     });
-    expect(sdk.system.version).not.toHaveBeenCalled();
+    expect(sdk.system.version).toHaveBeenCalledWith({ force: true });
   });
 
   it("explains an unknown desktop release and retries through the desktop bridge", async () => {
@@ -2430,6 +2430,7 @@ The canonical release summary.
       const serverVersion = {
         ...inventory.systemVersion!,
         currentVersion: "0.0.4",
+        installKind: "desktop" as const,
         updateAvailable: true,
       };
       useUpdateInventoryMock.mockReturnValue(

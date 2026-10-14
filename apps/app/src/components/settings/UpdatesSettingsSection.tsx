@@ -787,6 +787,7 @@ export function ChangelogPreviewCard() {
 
 interface BbAppUpdateRowsProps {
   name?: string;
+  serverHostName?: string | null;
   systemVersion: SystemVersionResponse | undefined;
   appUpdate?: SystemAppUpdateStatus | undefined;
   applyPending?: boolean;
@@ -802,6 +803,7 @@ interface BbAppUpdateRowsProps {
 
 export function BbAppUpdateRows({
   name: rowName = "Server",
+  serverHostName = null,
   systemVersion,
   appUpdate,
   applyPending = false,
@@ -973,11 +975,14 @@ export function BbAppUpdateRows({
     );
   }
 
+  const desktopHostedServer =
+    systemVersion.installKind === "desktop" ||
+    (appUpdate !== undefined && isDesktopOwnedServer(appUpdate));
   const name = (
     <RowName
       name={rowName}
       detail={
-        systemVersion.updateAvailable ? (
+        systemVersion.updateAvailable && !desktopHostedServer ? (
           <span className="hidden truncate font-mono text-2xs text-muted-foreground sm:inline">
             {systemVersion.upgradeCommand}
           </span>
@@ -991,6 +996,14 @@ export function BbAppUpdateRows({
   );
 
   if (systemVersion.updateAvailable) {
+    if (desktopHostedServer) {
+      return row(
+        name,
+        <RowStateControl state="update-available" />,
+        undefined,
+        `Update bb in the desktop app on ${serverHostName ?? "the server machine"}.`,
+      );
+    }
     return row(
       name,
       <RowStateControl
@@ -2004,6 +2017,10 @@ export function UpdatesSettingsSection({
   const inventory = useUpdateInventory();
   const { localDaemonHostId } = useHostDaemon();
   const serverPrimaryHostId = useSystemConfig().data?.primaryHostId ?? null;
+  const serverHostName =
+    inventory.machines.find(
+      (machine) => machine.host.id === serverPrimaryHostId,
+    )?.host.name ?? null;
   const { desktopApi, desktopInfo, isDesktop } = useDesktopUpdateInfo();
   const retryHostUpdate = useRetryHostUpdate();
   const isChecking = useSyncExternalStore(
@@ -2043,20 +2060,22 @@ export function UpdatesSettingsSection({
 
   function handleCheckForUpdates(): void {
     startAppUpdateCheck(async () => {
-      const [appCheck, appUpdateCheck] = await Promise.allSettled([
-        desktopApi !== null
-          ? desktopApi.checkForUpdates().then(() => null)
-          : sdk.system.version({ force: true }),
-        sdk.system.appUpdate({ force: true }),
-      ]);
+      const [appCheck, appUpdateCheck, desktopCheck] = await Promise.allSettled(
+        [
+          sdk.system.version({ force: true }),
+          sdk.system.appUpdate({ force: true }),
+          desktopApi?.checkForUpdates(),
+        ],
+      );
       if (appUpdateCheck.status === "fulfilled") {
         hydrateAppUpdateStatus({ queryClient, status: appUpdateCheck.value });
       }
       if (appCheck.status === "rejected") {
         throw appCheck.reason;
       }
-      if (appCheck.value !== null) {
-        hydrateSystemVersionCache({ queryClient, version: appCheck.value });
+      hydrateSystemVersionCache({ queryClient, version: appCheck.value });
+      if (desktopCheck.status === "rejected") {
+        throw desktopCheck.reason;
       }
       await Promise.all(
         connectedHostIds.map((hostId) =>
@@ -2095,7 +2114,13 @@ export function UpdatesSettingsSection({
     (machine) => visibleProviderUpdateIssues(machine).length > 0,
   );
   const serverRunsSeparately =
-    isDesktop && appUpdate !== undefined && !isDesktopOwnedServer(appUpdate);
+    isDesktop &&
+    !(
+      appUpdate !== undefined &&
+      isDesktopOwnedServer(appUpdate) &&
+      localDaemonHostId !== null &&
+      localDaemonHostId === serverPrimaryHostId
+    );
   const hasUpdateWork =
     appUpdateVisible || hasProviderUpdates || hasStalledMachine;
   const fleetIsHealthy = relevantFleetMachines.length === 0;
@@ -2125,6 +2150,7 @@ export function UpdatesSettingsSection({
   const appRow = (
     <BbAppUpdateRows
       name={isDesktop ? "Desktop" : "Server"}
+      serverHostName={serverHostName}
       systemVersion={inventory.systemVersion}
       appUpdate={desktopInfo === null ? appUpdate : undefined}
       applyPending={applyAppUpdate.isPending}
@@ -2141,6 +2167,7 @@ export function UpdatesSettingsSection({
   const serverAppRow = (
     <BbAppUpdateRows
       name="Server"
+      serverHostName={serverHostName}
       systemVersion={inventory.systemVersion}
       appUpdate={appUpdate}
       applyPending={applyAppUpdate.isPending}
