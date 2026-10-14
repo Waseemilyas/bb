@@ -198,8 +198,16 @@ app.slots.experimental_threadAction({
     icon: "Notification",
     choices: {
       items: [
-        { id: "all", label: "All activity", selected: data.get(thread.id) === "all" },
-        { id: "muted", label: "Muted", selected: data.get(thread.id) === "muted" },
+        {
+          id: "all",
+          label: "All activity",
+          selected: data.get(thread.id) === "all",
+        },
+        {
+          id: "muted",
+          label: "Muted",
+          selected: data.get(thread.id) === "muted",
+        },
       ],
     },
     run: ({ value }) => saveLevel(sdk, thread.id, value),

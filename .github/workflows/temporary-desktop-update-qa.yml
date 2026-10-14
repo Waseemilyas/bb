@@ -8,7 +8,7 @@ concurrency:
   cancel-in-progress: false
 env:
   PNPM_VERSION: "9.15.0"
-  QA_PRODUCT_HEAD: "942f476c18dbeabb0d84b1c760a73e22e3becb3b"
+  QA_PRODUCT_HEAD: "d3d9d771a1d2decb4a25720eebaf002a2f81b117"
 jobs:
   package-smoke:
     name: Package Smoke (${{ matrix.os }}, Node ${{ matrix.node-version }})
