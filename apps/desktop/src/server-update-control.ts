@@ -11,7 +11,6 @@ export function attachServerUpdateControl(args: {
   check: () => Promise<void>;
   install: () => Promise<void>;
   subscribe: (listener: () => void) => () => void;
-  onError: (error: unknown) => void;
 }): void {
   const send = (message: DesktopAppUpdateMessage): void => {
     if (args.child.connected) {
@@ -43,7 +42,6 @@ export function attachServerUpdateControl(args: {
       });
     };
     void respond().catch((error: unknown) => {
-      args.onError(error);
       send({
         channel: "bb-desktop-update/response",
         requestId: request.requestId,
