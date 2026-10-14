@@ -1098,21 +1098,21 @@ schema, a default, and a revision that increments on every write. Writes name
 the revision they expect and receive `409 ui_preference_conflict` when another
 client wrote first, so a stale window cannot silently clobber a newer value.
 
-| Key                                  | Value                                                                                                            |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| `sidebar.organizationMode`           | `project`, `chronological`, or `machine`                                                                         |
-| `sidebar.threadGrouping.environment` | `auto`, `true`, or `false`                                                                                       |
-| `sidebar.chronologicalSort`          | `updated`, `created`, `alpha`, or `none`                                                                         |
-| `sidebar.sectionOrder`               | Section id list for **By project**                                                                               |
-| `sidebar.manualSectionOrder`         | Section id list for **Manually**                                                                                 |
-| `sidebar.machineSectionOrder`        | Section id list for **By machine**                                                                               |
-| `sidebar.hiddenGroups`               | Legacy project, custom section, and machine ids migrated once into the Thread list plugin                        |
-| `sidebar.footerOrder`                | Footer action order                                                                                              |
-| `sidebar.hiddenFooterItems`          | Footer actions moved into More                                                                                   |
-| `sidebar.pluginPanelOrder`           | Rail destination order                                                                                           |
-| `sidebar.visiblePluginPanels`        | Rail destinations shown, or `null` for every destination                                                         |
-| `sidebar.threadListProvider`         | Plugin key or `__automatic__` (default)                                                                          |
-| `infoPanel.collapsedSections`        | Collapsed thread Info panel sections (`commits`, `uncommittedChanges`, `childThreads`, `forks`, `threadStorage`) |
+| Key                                  | Value                                                                                     |
+| ------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `sidebar.organizationMode`           | `project`, `chronological`, or `machine`                                                  |
+| `sidebar.threadGrouping.environment` | `auto`, `true`, or `false`                                                                |
+| `sidebar.chronologicalSort`          | `updated`, `created`, `alpha`, or `none`                                                  |
+| `sidebar.sectionOrder`               | Section id list for **By project**                                                        |
+| `sidebar.manualSectionOrder`         | Section id list for **Manually**                                                          |
+| `sidebar.machineSectionOrder`        | Section id list for **By machine**                                                        |
+| `sidebar.hiddenGroups`               | Legacy project, custom section, and machine ids migrated once into the Thread list plugin |
+| `sidebar.footerOrder`                | Footer action order                                                                       |
+| `sidebar.hiddenFooterItems`          | Footer actions moved into More                                                            |
+| `sidebar.pluginPanelOrder`           | Rail destination order                                                                    |
+| `sidebar.visiblePluginPanels`        | Rail destinations shown, or `null` for every destination                                  |
+| `sidebar.threadListProvider`         | Plugin key or `__automatic__` (default)                                                   |
+| `infoPanel.collapsedSections`        | Collapsed thread Info panel sections (`commits`, `uncommittedChanges`, `childThreads`, `forks`, `threadStorage`)   |
 
 The sidebar thread list defaults to `__automatic__`: the first installed thread list
 plugin other than the bundled Thread list plugin (`thread-list/thread-list`), or the
