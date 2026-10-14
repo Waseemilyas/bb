@@ -6,6 +6,7 @@ import { arch, homedir, release, type as osType } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import {
   app,
+  autoUpdater as nativeAutoUpdater,
   BrowserWindow,
   clipboard,
   dialog,
@@ -2356,10 +2357,8 @@ async function installDesktopUpdate(): Promise<void> {
   ) {
     throw new Error("This AppImage cannot be replaced in place.");
   }
-  quitting = true;
-  stoppingForQuit = true;
-  await finishQuit();
-  desktopAutoUpdateService.installUpdate();
+  await desktopWindowFactory?.persistOpenWindows();
+  await desktopAutoUpdateService.installUpdate();
 }
 
 function registerDesktopUpdateIpc(): void {
@@ -3081,7 +3080,7 @@ async function runDesktopApp(): Promise<void> {
       !app.isPackaged && process.env.BB_DESKTOP_AUTO_UPDATE === "1",
     logger: desktopLogger,
     platform: desktopPlatform,
-    updater: createElectronAutoUpdaterAdapter(autoUpdater),
+    updater: createElectronAutoUpdaterAdapter(autoUpdater, nativeAutoUpdater),
   });
   desktopUpdateService.subscribe(() => {
     sendDesktopInfoChanged();

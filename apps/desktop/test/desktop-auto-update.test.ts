@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { EventEmitter } from "node:events";
+import { AppImageUpdater } from "electron-updater";
+import { describe, expect, it, vi } from "vitest";
 import type {
   UpdateCheckResult,
   UpdateDownloadedEvent,
@@ -6,6 +8,7 @@ import type {
 } from "electron-updater";
 import {
   createDesktopAutoUpdateService,
+  createElectronAutoUpdaterAdapter,
   shouldEnableDesktopAutoUpdate,
   type DesktopAutoUpdateAvailableHandler,
   type DesktopAutoUpdateDownloadedHandler,
@@ -109,7 +112,7 @@ class DesktopAutoUpdaterAdapterStub implements DesktopAutoUpdaterAdapter {
     this.updateNotAvailableHandlers.add(handler);
   }
 
-  quitAndInstall(): void {
+  async quitAndInstall(): Promise<void> {
     this.quitAndInstallCalls += 1;
   }
 
@@ -434,5 +437,48 @@ describe("desktop auto-update service", () => {
         isPackaged: false,
       }),
     ).toBe(true);
+  });
+});
+
+describe("native installer acceptance", () => {
+  it("reports native errors and accepts a subsequent retry", async () => {
+    const nativeUpdater = new EventEmitter();
+    const updater = new AppImageUpdater(null, {
+      version: "1.0.0",
+      name: "bb",
+      isPackaged: true,
+      appUpdateConfigPath: "",
+      userDataPath: "",
+      baseCachePath: "",
+      whenReady: async () => undefined,
+      relaunch: () => undefined,
+      quit: () => undefined,
+      onQuit: () => undefined,
+    });
+    updater.logger = null;
+    const errorListeners = updater.listenerCount("error");
+    const adapter = createElectronAutoUpdaterAdapter(updater, nativeUpdater);
+    await expect(adapter.quitAndInstall()).rejects.toThrow(
+      "No update filepath provided",
+    );
+    expect(nativeUpdater.listenerCount("before-quit-for-update")).toBe(0);
+
+    const install = vi
+      .spyOn(updater, "quitAndInstall")
+      .mockImplementation(() => undefined);
+    const failed = adapter.quitAndInstall();
+    const rejection = expect(failed).rejects.toThrow("Native installer failed");
+    await Promise.resolve();
+    updater.emit("error", new Error("Native installer failed"));
+    await rejection;
+    expect(nativeUpdater.listenerCount("before-quit-for-update")).toBe(0);
+
+    const retry = adapter.quitAndInstall();
+    expect(adapter.quitAndInstall()).toBe(retry);
+    expect(install).toHaveBeenCalledTimes(2);
+    nativeUpdater.emit("before-quit-for-update");
+    await retry;
+    expect(nativeUpdater.listenerCount("before-quit-for-update")).toBe(0);
+    expect(updater.listenerCount("error")).toBe(errorListeners);
   });
 });

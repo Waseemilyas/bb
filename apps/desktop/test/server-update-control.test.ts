@@ -9,7 +9,8 @@ import { startBbAppProcess } from "../src/bb-process.js";
 describe("hosting desktop update control", () => {
   it.each(
     ["direct", ...(process.platform === "linux" ? ["appimage"] : [])].flatMap(
-      (runtimeKind) => [false, true].map((failFirst) => ({ runtimeKind, failFirst })),
+      (runtimeKind) =>
+        [false, true].map((failFirst) => ({ runtimeKind, failFirst })),
     ),
   )(
     "updates through launcher IPC ($runtimeKind, fail first: $failFirst)",
@@ -69,7 +70,8 @@ describe("hosting desktop update control", () => {
               },
       });
       const install = vi.fn(async () => undefined);
-      if (failFirst) install.mockRejectedValueOnce(new Error("Installer failed"));
+      if (failFirst)
+        install.mockRejectedValueOnce(new Error("Installer failed"));
       const onError = vi.fn();
       attachServerUpdateControl({
         child: child.childProcess,
