@@ -474,7 +474,9 @@ describe("native installer acceptance", () => {
         .spyOn(updater, "quitAndInstall")
         .mockImplementation(() => undefined);
       const failed = adapter.quitAndInstall();
-      const rejection = expect(failed).rejects.toThrow("Native installer failed");
+      const rejection = expect(failed).rejects.toThrow(
+        "Native installer failed",
+      );
       await Promise.resolve();
       updater.emit("error", new Error("Native installer failed"));
       await rejection;
@@ -492,8 +494,11 @@ describe("native installer acceptance", () => {
       }
       nativeUpdater.emit("before-quit-for-update");
       await retry;
-      if (isAppImage) expect(relaunch).toHaveBeenCalledWith("/bb-1.1.0.AppImage");
-      else expect(relaunch).not.toHaveBeenCalled();
+      if (isAppImage) {
+        expect(relaunch).toHaveBeenCalledWith("/bb-1.1.0.AppImage");
+      } else {
+        expect(relaunch).not.toHaveBeenCalled();
+      }
       expect(nativeUpdater.listenerCount("before-quit-for-update")).toBe(0);
       expect(updater.listenerCount("error")).toBe(errorListeners);
     },
