@@ -2396,7 +2396,7 @@ The canonical release summary.
     expect(installUpdate).toHaveBeenCalledOnce();
   });
 
-  it("keeps one desktop row when the desktop runs the server itself", async () => {
+  it("uses the Server label when the desktop runs the server itself", async () => {
     useDesktopApp();
     hostDaemon.localDaemonHostId = "host_primary";
     useUpdateInventoryMock.mockReturnValue(desktopFleet());
@@ -2409,8 +2409,8 @@ The canonical release summary.
     renderSection();
 
     await waitFor(() => expect(sdk.system.appUpdate).toHaveBeenCalled());
-    expect(screen.getByText("Desktop")).toBeDefined();
-    expect(screen.queryByText("Server")).toBeNull();
+    expect(screen.getByText("Server")).toBeDefined();
+    expect(screen.queryByText("Desktop")).toBeNull();
     expect(
       document.querySelectorAll('[data-bb-update-role="app"]'),
     ).toHaveLength(1);
