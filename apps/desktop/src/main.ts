@@ -30,7 +30,11 @@ import {
 } from "@bb/config/app-surface";
 import { findMachineServiceFile } from "@bb/config/machine-service";
 import {
+  DEFAULT_CONNECT_BASE_URL,
   deriveConnectBaseUrl,
+  resolveDefaultConnectBaseUrl,
+  serverUrlForHandle,
+  type ConnectAccountSession,
   type ConnectCredential,
 } from "@bb/connect-client";
 import {
@@ -291,6 +295,7 @@ const OWNED_RUNTIME_KILL_TIMEOUT_MS = 1_000;
 const FOREIGN_RUNTIME_STOP_TIMEOUT_MS = 15_000;
 const FOREIGN_RUNTIME_KILL_TIMEOUT_MS = 3_000;
 const REMOTE_SYSTEM_CONFIG_POLL_INTERVAL_MS = 5 * 60 * 1000;
+const CONNECT_ACCOUNT_API_HANDLE = "connect";
 
 interface DesktopRuntime {
   bbProcess: BbAppProcess | null;
@@ -790,14 +795,16 @@ function buildServerMenuArgs(): ServerMenuArgs {
     addServer() {
       void openSetServerUrlDialog(true);
     },
-    connectServersSkipReason:
-      connectServers.length === 0 ? connectServerSyncSkipReason : null,
+    connectServersSkipReason: connectServerSyncSkipReason,
     selectServer(serverId) {
       void setActiveServerTarget(serverId);
     },
     servers: buildMenuServerItems(connectServers),
     setServerUrl() {
       void openSetServerUrlDialog();
+    },
+    signInToConnect() {
+      openConnectSignIn(getFocusedApplicationWindow());
     },
   };
 }
@@ -1228,19 +1235,10 @@ async function authenticateConnectTarget(
     }
     cachedFailure = movedResult;
   }
-  const accountUrl = deriveConnectBaseUrl(remoteServerUrl);
-  const accountCookieName =
-    new URL(accountUrl).protocol === "http:"
-      ? "better-auth.session_token"
-      : "__Secure-better-auth.session_token";
-  const accountCookies = await cookieStore.get({
-    name: accountCookieName,
-    url: accountUrl,
-  });
-  const accountCookie = accountCookies.find(
-    (cookie) => cookie.name === accountCookieName,
+  const accountCookie = await readConnectAccountCookie(
+    deriveConnectBaseUrl(remoteServerUrl),
   );
-  if (accountCookie !== undefined) {
+  if (accountCookie !== null) {
     const accountResult = await installConnectDesktopSession({
       cookieStore,
       mintCookie: createAccountCookieSource({
@@ -1286,6 +1284,82 @@ async function authenticateConnectTarget(
     void ensureDesktopMachineEnrolled();
   }
   return localResult;
+}
+
+function connectAccountCookieName(accountUrl: string): string {
+  return new URL(accountUrl).protocol === "http:"
+    ? "better-auth.session_token"
+    : "__Secure-better-auth.session_token";
+}
+
+async function readConnectAccountCookie(
+  accountUrl: string,
+): Promise<{ name: string; value: string } | null> {
+  const name = connectAccountCookieName(accountUrl);
+  const cookies = await session.defaultSession.cookies.get({
+    name,
+    url: accountUrl,
+  });
+  const cookie = cookies.find((candidate) => candidate.name === name);
+  return cookie === undefined ? null : { name, value: cookie.value };
+}
+
+function resolveConnectAccountUrl(): string {
+  const target = serverTargetStore?.getTarget();
+  const serverUrl =
+    target?.kind === "connect"
+      ? target.server.url
+      : (listMenuConnectServers()[0]?.url ??
+        cachedConnectCredential?.serverUrl ??
+        null);
+  if (serverUrl !== null) {
+    return deriveConnectBaseUrl(serverUrl);
+  }
+  try {
+    return resolveDefaultConnectBaseUrl(process.env);
+  } catch (error) {
+    desktopLogger.warn(
+      `[desktop] using ${DEFAULT_CONNECT_BASE_URL} for bb Connect: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return DEFAULT_CONNECT_BASE_URL;
+  }
+}
+
+async function readConnectAccountSession(): Promise<ConnectAccountSession | null> {
+  const serverUrls = listMenuConnectServers().map(
+    (server) => new URL(server.url).origin,
+  );
+  if (serverUrls.length === 0) {
+    serverUrls.push(
+      serverUrlForHandle(
+        resolveConnectAccountUrl(),
+        CONNECT_ACCOUNT_API_HANDLE,
+      ),
+    );
+  }
+  for (const serverUrl of serverUrls) {
+    const cookie = await readConnectAccountCookie(
+      deriveConnectBaseUrl(serverUrl),
+    );
+    if (cookie !== null) {
+      return { serverUrl, cookie };
+    }
+  }
+  return null;
+}
+
+async function adoptSavedConnectServers(): Promise<void> {
+  if (serverTargetStore === null) {
+    return;
+  }
+  const switched = await serverTargetStore.adoptConnectServers(
+    listMenuConnectServers(),
+  );
+  if (switched) {
+    await applyServerTarget();
+    return;
+  }
+  refreshApplicationMenu();
 }
 
 async function clearCachedConnectCredential(): Promise<void> {
@@ -1642,25 +1716,24 @@ async function runStartupAction(
 }
 
 function openConnectSignIn(parentWindow: BrowserWindow | null): void {
-  const target = serverTargetStore?.getTarget();
-  if (target?.kind !== "connect") return;
-  const targetUrl = target.server.url;
   if (connectSignInWindow !== null && !connectSignInWindow.isDestroyed()) {
     connectSignInWindow.focus();
     return;
   }
-  const accountUrl = deriveConnectBaseUrl(targetUrl);
+  const target = serverTargetStore?.getTarget();
+  const targetUrl = target?.kind === "connect" ? target.server.url : null;
+  const accountUrl = resolveConnectAccountUrl();
   const accountHost = new URL(accountUrl).hostname;
-  const cookieName =
-    new URL(accountUrl).protocol === "http:"
-      ? "better-auth.session_token"
-      : "__Secure-better-auth.session_token";
+  const cookieName = connectAccountCookieName(accountUrl);
   const signInUrl = new URL("/dashboard", accountUrl);
-  signInUrl.searchParams.set("returnTo", targetUrl);
+  if (targetUrl !== null) {
+    signInUrl.searchParams.set("returnTo", targetUrl);
+  }
   const signInWindow = new BrowserWindow({
     height: 720,
     parent: parentWindow ?? undefined,
-    title: "Reconnect bb Connect",
+    title:
+      targetUrl === null ? "Sign in to bb Connect" : "Reconnect bb Connect",
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -1686,8 +1759,10 @@ function openConnectSignIn(parentWindow: BrowserWindow | null): void {
     completed = true;
     session.defaultSession.cookies.removeListener("changed", onCookieChanged);
     if (!signInWindow.isDestroyed()) signInWindow.close();
+    connectServerSync?.syncNow().catch(() => {});
     const currentTarget = serverTargetStore?.getTarget();
     if (
+      targetUrl !== null &&
       currentTarget?.kind === "connect" &&
       currentTarget.server.url === targetUrl
     ) {
@@ -1829,7 +1904,7 @@ async function applyServerTarget(): Promise<void> {
         details: unauthorized
           ? "The desktop app could not establish a session for this Connect server. " +
             (result.detail === "this account does not own the selected server"
-              ? `(unauthorized: This account does not own ${target.server.name}.)`
+              ? `(unauthorized: This account does not own ${new URL(target.server.url).host}.)`
               : "(unauthorized: The app was rejected.)")
           : "The desktop app could not establish a session for this Connect server. " +
             `(${result.code}: ${result.detail})`,
@@ -1922,6 +1997,24 @@ async function openSetServerUrlDialog(add = false): Promise<void> {
     return;
   }
   const target = serverTargetStore.getTarget();
+  if (!add && target.kind === "connect") {
+    const result = await openServerUrlDialog({
+      initialName: serverTargetStore.getConnectServerName(target.server.handle),
+      initialUrl: target.server.url,
+      mode: "rename",
+      parentWindow: getFocusedApplicationWindow(),
+      preloadPath: serverUrlDialogPreloadPath,
+    });
+    if (result.kind !== "set") {
+      return;
+    }
+    await serverTargetStore.setConnectServerName(
+      target.server.handle,
+      result.name,
+    );
+    refreshApplicationMenu();
+    return;
+  }
   if (!add && target.kind !== "custom") {
     return;
   }
@@ -1932,6 +2025,7 @@ async function openSetServerUrlDialog(add = false): Promise<void> {
         .getCustomServers()
         .find((server) => server.url === previousUrl)?.name ?? null,
     initialUrl: previousUrl,
+    mode: add ? "add" : "edit",
     parentWindow: getFocusedApplicationWindow(),
     preloadPath: serverUrlDialogPreloadPath,
   });
@@ -1958,6 +2052,7 @@ async function openSetServerUrlDialog(add = false): Promise<void> {
         : {}),
     },
   );
+  await serverTargetStore.adoptConnectServers(listMenuConnectServers());
   await applyServerTarget();
 }
 
@@ -2889,6 +2984,7 @@ async function runDesktopApp(): Promise<void> {
     storagePath: join(userDataPath, SERVER_TARGET_FILE_NAME),
   });
   await serverTargetStore.load();
+  await serverTargetStore.adoptConnectServers(listMenuConnectServers());
   const dataDir = resolveDataDirFromEnv({
     env: process.env,
     homeDir: homedir(),
@@ -2906,6 +3002,7 @@ async function runDesktopApp(): Promise<void> {
   });
   cachedConnectCredential = await connectCredentialCache.read();
   connectServerSync = createConnectServerSync({
+    getAccountSession: readConnectAccountSession,
     getCredential: () => cachedConnectCredential,
     getLocalServerUrl: () =>
       localServerMove === null ? (currentRuntime?.serverUrl ?? null) : null,
@@ -2930,7 +3027,7 @@ async function runDesktopApp(): Promise<void> {
           url: synced.url,
         });
       }
-      refreshApplicationMenu();
+      void adoptSavedConnectServers();
     },
     log: (message) => {
       desktopLogger.info(`[desktop] ${message}`);

@@ -11,7 +11,7 @@ import {
 } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo } from "react";
 import { COMPACT_VIEWPORT_QUERY } from "@bb/shared-ui/hooks/use-compact-viewport";
-import { getMediaQuerySnapshot } from "@bb/shared-ui/hooks/use-media-query";
+import { useMediaQuery } from "@bb/shared-ui/hooks/use-media-query";
 import type { PendingInteraction, ThreadListEntry } from "@bb/domain";
 import type {
   PromptHistoryResponse,
@@ -40,6 +40,7 @@ import { sdk } from "@/lib/sdk";
 import {
   useThreadDetailRealtimeSubscription,
   useThreadListRealtimeSubscription,
+  useThreadTimelineRealtimeSubscription,
 } from "@/hooks/useRealtimeSubscription";
 import {
   getCachedSidebarNavigationThreads,
@@ -97,6 +98,14 @@ import {
 import { ARCHIVED_THREADS_PAGE_SIZE } from "./archived-threads-page-size";
 import { ingestThreadDetailBootstrap } from "../cache-owners/thread-detail-cache-owner";
 import { clearThreadTimelineUnseenEvents } from "../cache-owners/thread-timeline-unseen-events";
+import {
+  COMPACT_THREAD_TIMELINE_SEGMENT_LIMIT,
+  isCachedThreadTimelinePushEnabled,
+  isThreadTimelinePushEnabled,
+  resolveThreadTimelineSegmentLimit,
+} from "../cache-owners/thread-timeline-push-owner";
+import { systemConfigQueryOptions } from "./system-queries";
+import { markStreamTrace } from "@/lib/stream-trace";
 import {
   THREAD_OPEN_CACHE_GC_MS,
   touchThreadOpenCache,
@@ -285,25 +294,16 @@ function addThreadMentionCandidate(
   }
 }
 
-function buildThreadMentionCandidates(
-  threads: readonly ThreadListItem[],
-  { limit }: { limit: number },
-): ThreadListResponse {
-  const candidatesById = new Map<string, ThreadListItem>();
-  for (const thread of threads) {
-    addThreadMentionCandidate(candidatesById, thread);
-  }
-  return Array.from(candidatesById.values()).slice(0, limit);
-}
-
 const EMPTY_THREAD_LIST: ThreadListResponse = [];
 
 export function selectThreadMentionCandidates(
   threads: ThreadListEntry[],
 ): ThreadListResponse {
-  return buildThreadMentionCandidates(threads, {
-    limit: THREAD_MENTION_CANDIDATE_LIMIT,
-  });
+  const candidatesById = new Map<string, ThreadListItem>();
+  for (const thread of threads) {
+    addThreadMentionCandidate(candidatesById, thread);
+  }
+  return Array.from(candidatesById.values());
 }
 
 function getThreadMentionCandidatePlaceholder({
@@ -1059,14 +1059,6 @@ interface FetchThreadTimelineArgs {
   threadId: string;
 }
 
-export const COMPACT_THREAD_TIMELINE_SEGMENT_LIMIT = 8;
-
-function resolveThreadTimelineSegmentLimit(): number | undefined {
-  return getMediaQuerySnapshot(COMPACT_VIEWPORT_QUERY)
-    ? COMPACT_THREAD_TIMELINE_SEGMENT_LIMIT
-    : undefined;
-}
-
 async function fetchThreadTimeline({
   queryClient,
   signal,
@@ -1089,10 +1081,20 @@ async function fetchThreadTimeline({
       ? { afterSequence: String(previous.maxSeq) }
       : {}),
   });
-  const timeline = await mergeThreadTimelineDelta(previous, response, () =>
+  const merged = await mergeThreadTimelineDelta(previous, response, () =>
     sdk.threads.timeline({ threadId, signal, ...pageArgs }),
   );
+  const pushed = isCachedThreadTimelinePushEnabled(queryClient)
+    ? queryClient.getQueryData<ThreadTimelineResponse>(queryKey)
+    : undefined;
+  const timeline =
+    pushed !== undefined && pushed.maxSeq > merged.maxSeq ? pushed : merged;
   clearThreadTimelineUnseenEvents(queryClient, threadId, timeline.maxSeq);
+  markStreamTrace("bb:timeline-applied", {
+    threadId,
+    maxSeq: timeline.maxSeq,
+    source: response.delta === undefined ? "fetch" : "fetch-delta",
+  });
   return timeline;
 }
 
@@ -1137,7 +1139,20 @@ export function useThreadTimeline(
 ) {
   const queryClient = useQueryClient();
   const enabled = (options?.enabled ?? true) && Boolean(id);
+  const compactViewport = useMediaQuery(COMPACT_VIEWPORT_QUERY);
+  const pushEnabled = useQuery({
+    ...systemConfigQueryOptions(),
+    enabled: false,
+    select: isThreadTimelinePushEnabled,
+  }).data;
   useThreadDetailRealtimeSubscription(id, { enabled });
+  useThreadTimelineRealtimeSubscription(id, {
+    deferContent: true,
+    enabled: enabled && pushEnabled === true,
+    segmentLimit: compactViewport
+      ? COMPACT_THREAD_TIMELINE_SEGMENT_LIMIT
+      : null,
+  });
   useEffect(() => {
     if (enabled) {
       touchThreadOpenCache(queryClient, id);

@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { runGit } from "@bb/host-workspace";
 import { initRepo } from "@bb/test-helpers";
 import { listWorkspacePaths } from "./file-list.js";
@@ -176,6 +176,45 @@ describe("workspace path discovery", () => {
     );
   });
 
+  it("reuses a slow listing and refreshes it in the background", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const root = await createRoot();
+      await write(root, "first.txt");
+      const slowListing = paths(root);
+      vi.setSystemTime(Date.now() + 1_000);
+      expect(await slowListing).toEqual(["first.txt"]);
+
+      await write(root, "second.txt");
+      expect(await paths(root)).toEqual(["first.txt"]);
+
+      vi.setSystemTime(Date.now() + 2_000);
+      expect(await paths(root)).toEqual(["first.txt"]);
+      await vi.waitFor(async () => {
+        expect(await paths(root)).toEqual(["first.txt", "second.txt"]);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("walks again once a cached slow listing expires", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const root = await createRoot();
+      await write(root, "first.txt");
+      const slowListing = paths(root);
+      vi.setSystemTime(Date.now() + 1_000);
+      expect(await slowListing).toEqual(["first.txt"]);
+
+      await write(root, "second.txt");
+      vi.setSystemTime(Date.now() + 30_000);
+      expect(await paths(root)).toEqual(["first.txt", "second.txt"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("does not retain failed discovery", async () => {
     const root = path.join(await createRoot(), "missing");
     await expect(listWorkspacePaths(listingArgs(root))).rejects.toMatchObject({
@@ -200,9 +239,10 @@ describe("workspace path discovery", () => {
       excludeNames: [],
       limit: 1,
     };
+    const signal = new AbortController().signal;
     const [alpha, beta] = await Promise.all([
-      listHostPaths({ ...command, query: "alpha" }),
-      listHostPaths({ ...command, query: "beta" }),
+      listHostPaths({ ...command, query: "alpha" }, signal),
+      listHostPaths({ ...command, query: "beta" }, signal),
     ]);
     expect(alpha.paths.map((entry) => entry.path)).toEqual(["alpha.md"]);
     expect(beta.paths.map((entry) => entry.path)).toEqual(["beta.md"]);

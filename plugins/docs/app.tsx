@@ -876,9 +876,11 @@ function DocumentAction({
 function InlineDocument({
   document,
   openInTab,
+  panel = false,
 }: {
   document: DocumentRef;
   openInTab?(): void;
+  panel?: boolean;
 }) {
   const { state, session } = useDocumentSession(
     document.vaultId,
@@ -886,6 +888,7 @@ function InlineDocument({
   );
   const rpc = useRpc<typeof docsRpcContract>();
   const composer = useComposer();
+  const navigate = useBbNavigate();
   const [editing, setEditing] = useState(false);
   const [asking, setAsking] = useState(false);
   const [askError, setAskError] = useState<string | null>(null);
@@ -953,9 +956,13 @@ function InlineDocument({
     <TooltipProvider delayDuration={200}>
       <section
         aria-label={document.title}
-        className="my-2 min-w-0 overflow-hidden rounded-lg border border-border bg-background"
+        className={
+          panel
+            ? "flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
+            : "my-2 min-w-0 overflow-hidden rounded-lg border border-border bg-background"
+        }
       >
-        <header className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-xs text-muted-foreground">
+        <header className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1.5 text-xs text-muted-foreground">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <span className="shrink-0 font-semibold">Docs</span>
             <span className="truncate opacity-70">{document.title}</span>
@@ -1018,6 +1025,17 @@ function InlineDocument({
               disabled={!state.loaded}
               onClick={() => void copy()}
             />
+            {panel && (
+              <DocumentAction
+                label="Open in Docs"
+                icon="ExternalLink"
+                onClick={() =>
+                  navigate.toPluginPanel("docs", {
+                    subPath: `${document.vaultId}/${document.path}`,
+                  })
+                }
+              />
+            )}
             {openInTab && (
               <>
                 <span className="mx-1 h-4 border-l border-border" />
@@ -1055,7 +1073,7 @@ function InlineDocument({
           </p>
         )}
         <div
-          className="relative"
+          className={panel ? "relative min-h-0 flex-1 overflow-y-auto" : "relative"}
           style={openInTab ? { maxHeight: 400, overflow: "clip" } : undefined}
         >
           {!state.loaded ? (
@@ -1219,7 +1237,7 @@ function HtmlPreview({
     );
   return (
     <iframe
-      className={`${panel ? "min-h-[32rem]" : "min-h-0"} flex-1 border-0 bg-white`}
+      className="min-h-0 flex-1 border-0 bg-white"
       sandbox="allow-scripts"
       title={title}
       src={`${state.baseUrl}/${encodePath(path)}`}
@@ -1231,7 +1249,7 @@ function DocumentPicker() {
   const [subPath, setSubPath] = useState("");
   const navigate = useBbNavigate();
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto p-4">
       <p className="text-sm text-muted-foreground">
         Choose a document to open.
       </p>
@@ -1263,27 +1281,26 @@ function DocumentPanel({ params }: PluginThreadPanelProps) {
   const navigate = useBbNavigate();
   if (!document) return <DocumentPicker />;
   if (!/\.html?$/i.test(document.path))
-    return <InlineDocument document={document} />;
+    return <InlineDocument document={document} panel />;
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border pb-2">
-        <div className="min-w-0 flex-1 truncate text-sm font-medium">
-          {document.title}
-        </div>
-        <Button
-          className="size-8 shrink-0"
-          size="icon"
-          variant="ghost"
-          aria-label="Open in Docs"
-          onClick={() =>
-            navigate.toPluginPanel("docs", {
-              subPath: `${document.vaultId}/${document.path}`,
-            })
-          }
-        >
-          <HugeiconsIcon icon={ArrowUpRight01Icon} />
-        </Button>
-      </div>
+      <TooltipProvider delayDuration={200}>
+        <header className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1.5 text-xs text-muted-foreground">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <span className="shrink-0 font-semibold">Docs</span>
+            <span className="truncate opacity-70">{document.title}</span>
+          </div>
+          <DocumentAction
+            label="Open in Docs"
+            icon="ExternalLink"
+            onClick={() =>
+              navigate.toPluginPanel("docs", {
+                subPath: `${document.vaultId}/${document.path}`,
+              })
+            }
+          />
+        </header>
+      </TooltipProvider>
       <HtmlPreview {...document} panel />
     </div>
   );
@@ -2426,6 +2443,7 @@ export default definePluginApp((app) => {
     title: "Document",
     icon: "FileText",
     component: DocumentPanel,
+    layout: "flush",
   });
   app.slots.fileOpener({
     id: "docs",

@@ -160,11 +160,10 @@ export interface ExperimentalQuestionFormHost {
  * the host adds room for its microphone controls when voice input is
  * available.
  */
-export interface ExperimentalVoiceInputTextareaProps
-  extends Omit<
-    ComponentPropsWithRef<"textarea">,
-    "value" | "defaultValue" | "onChange" | "children"
-  > {
+export interface ExperimentalVoiceInputTextareaProps extends Omit<
+  ComponentPropsWithRef<"textarea">,
+  "value" | "defaultValue" | "onChange" | "children"
+> {
   value: string;
   /**
    * Receives typed edits and finished transcripts, which the host appends to
@@ -1227,6 +1226,23 @@ export interface ExperimentalClipboardContent {
 }
 
 /**
+ * What {@link PluginSdkApp.experimental_saveFile} saves: a URL on the bb
+ * server (such as one of the plugin's own HTTP routes), or bytes already in
+ * the page, plus the file name the user sees.
+ */
+export type ExperimentalSaveFileRequest =
+  | { fileName: string; url: string }
+  | { fileName: string; blob: Blob };
+
+/**
+ * How {@link PluginSdkApp.experimental_saveFile} started. `started` means
+ * the browser or native shell took over the download; completion and share
+ * cancellation are not reported to the page. `failed` means the download
+ * could not start; bb already showed an error toast.
+ */
+export type ExperimentalSaveFileOutcome = "started" | "failed";
+
+/**
  * The `threads` area of {@link PluginBrowserBbSdk}: bb's public thread API
  * with the calling plugin's identity filled in. `spawn` and `fork` stamp
  * `origin: "plugin"` and `originPluginId` unless the call names another
@@ -1235,7 +1251,9 @@ export interface ExperimentalClipboardContent {
  */
 export type PluginBoundThreadsArea = Omit<
   BbSdkAreas["threads"],
-  "getPluginMetadata" | "updatePluginMetadata" | "experimental_listPluginMetadata"
+  | "getPluginMetadata"
+  | "updatePluginMetadata"
+  | "experimental_listPluginMetadata"
 > & {
   getPluginMetadata(
     args: Omit<ThreadPluginMetadataArgs, "pluginId"> & { pluginId?: string },
@@ -3860,6 +3878,21 @@ export interface PluginSdkApp {
   experimental_copyToClipboard(
     content: ExperimentalClipboardContent,
   ): Promise<boolean>;
+  /**
+   * Saves a file through bb's own download path, the one bb's file preview
+   * and attachment downloads use. Browsers and bb Desktop start an ordinary
+   * download. In the bb iOS app, where a download link would otherwise
+   * replace the app, the file goes to the system share sheet (Save to Files,
+   * AirDrop, other apps). A plain function: call it from a click handler and
+   * keep a real `href` on the link for copy-link and accessibility. Resolves
+   * with `started` or `failed` and never rejects. Completion and share-sheet
+   * cancellation are not reported. The native shell shows download errors;
+   * bb shows an error toast when the download cannot start.
+   * Experimental: see docs/api_to_audit.md.
+   */
+  experimental_saveFile(
+    request: ExperimentalSaveFileRequest,
+  ): Promise<ExperimentalSaveFileOutcome>;
   /**
    * The host-owned chat component (see {@link ThreadChatProps}). Together
    * with `Markdown`, the only components the SDK ships — everything else
