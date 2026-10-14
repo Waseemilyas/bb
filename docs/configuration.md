@@ -246,6 +246,20 @@ own update controls. `pnpm dev`, `bb-server`, and a standalone `bb-host-daemon`
 do not offer in-app updates. Updating restarts bb and interrupts running
 threads; the app and CLI ask first.
 
+The same desktop-hosted server update is available through `bb updates app apply`
+and `sdk.system.applyAppUpdate`. The hosting desktop downloads and installs the
+release with its native updater. The server asks before interrupting running
+threads, checks again after downloading, and persists the result across restart.
+
+Desktop update capability is an additive `desktopUpdateSupported: true` field in
+`SystemAppUpdateStatus`. The legacy `support` value remains
+`{ kind: "unsupported", reason: "desktop" }`, so previously shipped clients can
+still parse the response and keep their existing desktop update path. The CLI and SDK
+use the capability to update the hosting desktop. Older hosting desktops
+without this capability still need their local update controls. Desktop/server
+IPC stays within the bundled process tree and does not change the host-daemon
+protocol.
+
 `BB_APP_UPDATE_MODE`, `BB_APP_INSTALL_KIND`, `BB_APP_SOURCE_ORIGIN`, and
 `BB_APP_SOURCE_COMMIT` are internal markers the launcher passes to its server
 child; do not set them yourself.
