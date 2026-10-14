@@ -1921,8 +1921,16 @@ async function openSetServerUrlDialog(add = false): Promise<void> {
   if (serverTargetStore === null || serverUrlDialogPreloadPath === null) {
     return;
   }
-  const previousUrl = add ? null : serverTargetStore.getCustomServerUrl();
+  const target = serverTargetStore.getTarget();
+  if (!add && target.kind !== "custom") {
+    return;
+  }
+  const previousUrl = !add && target.kind === "custom" ? target.url : null;
   const result = await openServerUrlDialog({
+    initialName:
+      serverTargetStore
+        .getCustomServers()
+        .find((server) => server.url === previousUrl)?.name ?? null,
     initialUrl: previousUrl,
     parentWindow: getFocusedApplicationWindow(),
     preloadPath: serverUrlDialogPreloadPath,
@@ -1936,9 +1944,19 @@ async function openSetServerUrlDialog(add = false): Promise<void> {
   ) {
     return;
   }
+  if (result.kind === "set" && result.url === previousUrl) {
+    await serverTargetStore.setCustomServerName(previousUrl, result.name);
+    refreshApplicationMenu();
+    return;
+  }
   await serverTargetStore.setCustomServerUrl(
     result.kind === "set" ? result.url : null,
-    previousUrl ?? undefined,
+    {
+      ...(previousUrl === null ? {} : { replacedUrl: previousUrl }),
+      ...(result.kind === "set" && !(add && result.name === null)
+        ? { name: result.name }
+        : {}),
+    },
   );
   await applyServerTarget();
 }
