@@ -250,10 +250,10 @@ Desktop update capability is an additive `desktopUpdateSupported: true` field in
 `SystemAppUpdateStatus`. The legacy `support` value remains
 `{ kind: "unsupported", reason: "desktop" }`, so previously shipped clients can
 still parse the response and keep their existing desktop update path. New clients
-use the capability to offer the shared server controls. Older hosting desktops
-without this capability still need their local update controls. Desktop/server
-IPC stays within the bundled process tree and does not change the host-daemon
-protocol.
+use the capability to offer the shared server controls. If an updater request
+fails, confirmed support is retained and installation is blocked until a retry
+succeeds. Desktop/server IPC stays within the bundled process tree and does not
+change the host-daemon protocol.
 
 `BB_APP_UPDATE_MODE`, `BB_APP_INSTALL_KIND`, `BB_APP_SOURCE_ORIGIN`, and
 `BB_APP_SOURCE_COMMIT` are internal markers the launcher passes to its server

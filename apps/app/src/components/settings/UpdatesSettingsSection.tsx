@@ -787,7 +787,6 @@ export function ChangelogPreviewCard() {
 
 interface BbAppUpdateRowsProps {
   name?: string;
-  serverHostName?: string | null;
   systemVersion: SystemVersionResponse | undefined;
   appUpdate?: SystemAppUpdateStatus | undefined;
   applyPending?: boolean;
@@ -803,7 +802,6 @@ interface BbAppUpdateRowsProps {
 
 export function BbAppUpdateRows({
   name: rowName = "Server",
-  serverHostName = null,
   systemVersion,
   appUpdate,
   applyPending = false,
@@ -1001,12 +999,7 @@ export function BbAppUpdateRows({
 
   if (systemVersion.updateAvailable) {
     if (desktopHostedServer) {
-      return row(
-        name,
-        <RowStateControl state="update-available" />,
-        undefined,
-        `Update bb in the desktop app on ${serverHostName ?? "the server machine"}.`,
-      );
+      return row(name, <RowStateControl state="update-available" />);
     }
     return row(
       name,
@@ -2021,10 +2014,6 @@ export function UpdatesSettingsSection({
   const inventory = useUpdateInventory();
   const { localDaemonHostId } = useHostDaemon();
   const serverPrimaryHostId = useSystemConfig().data?.primaryHostId ?? null;
-  const serverHostName =
-    inventory.machines.find(
-      (machine) => machine.host.id === serverPrimaryHostId,
-    )?.host.name ?? null;
   const { desktopApi, desktopInfo, isDesktop } = useDesktopUpdateInfo();
   const retryHostUpdate = useRetryHostUpdate();
   const isChecking = useSyncExternalStore(
@@ -2157,7 +2146,6 @@ export function UpdatesSettingsSection({
   const serverAppRow = (
     <BbAppUpdateRows
       name="Server"
-      serverHostName={serverHostName}
       systemVersion={inventory.systemVersion}
       appUpdate={useServerUpdate || desktopInfo === null ? appUpdate : undefined}
       applyPending={applyAppUpdate.isPending}
