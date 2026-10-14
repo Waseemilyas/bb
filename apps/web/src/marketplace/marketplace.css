@@ -344,6 +344,11 @@
   white-space: nowrap;
 }
 
+.marketplace-section-head.is-category p {
+  max-width: none;
+  white-space: normal;
+}
+
 .marketplace-section-head > a {
   padding: 6px 10px;
   flex: 0 0 auto;
@@ -537,6 +542,18 @@
   color: var(--dim);
   font-size: 9px;
   font-weight: 700;
+}
+
+.marketplace-author-avatar.is-official {
+  display: inline-grid;
+  place-items: center;
+}
+
+.marketplace-author-mark {
+  width: 72%;
+  height: 60%;
+  background-size: 177.78% 210.99%;
+  background-position: 50% 50.5%;
 }
 
 .marketplace-author-avatar.is-large {
@@ -1261,7 +1278,7 @@ a.marketplace-detail-author:hover {
 
   .marketplace-sort-control,
   .marketplace-category-select .marketplace-count,
-  .marketplace-flat-results > .marketplace-section-head {
+  .marketplace-flat-results > .marketplace-section-head:not(.is-category) {
     display: none;
   }
 

@@ -80,6 +80,12 @@ const marketplaceNpmSourceSchema = z.object({
     .refine((value) => value.range === undefined || value.tag === undefined),
 });
 
+const marketplaceBundledSourceSchema = z.object({
+  bundled: z.object({
+    plugin: z.string().regex(MARKETPLACE_ID_PATTERN),
+  }),
+});
+
 export const marketplaceV2EntrySchema = z.object({
   id: z.string().regex(MARKETPLACE_ID_PATTERN),
   displayName: z.string().min(1),
@@ -91,7 +97,11 @@ export const marketplaceV2EntrySchema = z.object({
     .transform((tags) => tags.slice(0, 10))
     .default([]),
   author: marketplaceAuthorSchema,
-  source: z.union([marketplaceGitSourceSchema, marketplaceNpmSourceSchema]),
+  source: z.union([
+    marketplaceGitSourceSchema,
+    marketplaceNpmSourceSchema,
+    marketplaceBundledSourceSchema,
+  ]),
   category: z.string().regex(MARKETPLACE_ID_PATTERN).optional(),
   screenshots: z
     .array(screenshotUrlSchema)
@@ -167,7 +177,7 @@ export type MarketplaceCategory = z.infer<typeof marketplaceCategorySchema>;
 export type MarketplaceV2Entry = z.infer<typeof marketplaceV2EntrySchema>;
 export type MarketplaceV2Manifest = z.infer<typeof marketplaceV2ManifestSchema>;
 
-export function parseMarketplaceV2Manifest(
+export function parseBundledMarketplaceManifest(
   input: unknown,
 ): MarketplaceV2Manifest {
   const parsed = marketplaceV2ManifestSchema.safeParse(input);
@@ -182,4 +192,17 @@ export function parseMarketplaceV2Manifest(
     throw new Error(`Invalid marketplace v2 manifest: ${issues}`);
   }
   return parsed.data;
+}
+
+export function parseMarketplaceV2Manifest(
+  input: unknown,
+): MarketplaceV2Manifest {
+  const manifest = parseBundledMarketplaceManifest(input);
+  const bundled = manifest.plugins.find((entry) => "bundled" in entry.source);
+  if (bundled !== undefined) {
+    throw new Error(
+      `Invalid marketplace v2 manifest: plugins.${bundled.id}.source: only the bundled catalog may use a bundled source`,
+    );
+  }
+  return manifest;
 }

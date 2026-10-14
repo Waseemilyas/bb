@@ -41,4 +41,4 @@ External account changes use authorized disposable targets.
 
 ## Maintenance notes
 
-- Open Settings → Account Pooler [Experimental] (/settings/plugins/account-pool), then Add account. API-key storage acceptance and Ready status do not prove upstream authentication; verify that separately using a disposable target. Source: `plugins/account-pool/app.tsx:88`.
+- Open Settings → Account Pooler (/settings/plugins/account-pool), then Add account. API-key storage acceptance and Ready status do not prove upstream authentication; verify that separately using a disposable target. Source: `plugins/account-pool/app.tsx:88`.

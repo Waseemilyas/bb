@@ -164,6 +164,7 @@ interface FakeWebContentsEventMap {
   "did-start-loading": FakeVoidWebContentsListener;
   "did-stop-loading": FakeVoidWebContentsListener;
   "did-finish-load": FakeVoidWebContentsListener;
+  "media-started-playing": FakeVoidWebContentsListener;
   "did-navigate": FakeDidNavigateListener;
   "did-navigate-in-page": FakeDidNavigateInPageListener;
   "did-start-navigation": FakeVoidWebContentsListener;
@@ -356,6 +357,32 @@ const electronMock = vi.hoisted(() => {
 
   class FakeWebContents {
     public readonly debugger = new FakeDebugger();
+    public audioMuted = false;
+    public readonly mainFrame = {
+      framesInSubtree: [
+        {
+          detached: false,
+          executeJavaScript: vi
+            .fn<(code: string) => Promise<unknown>>()
+            .mockResolvedValue(null),
+        },
+        {
+          detached: false,
+          executeJavaScript: vi
+            .fn<(code: string) => Promise<unknown>>()
+            .mockResolvedValue(null),
+        },
+      ],
+    };
+
+    setAudioMuted(muted: boolean): void {
+      this.audioMuted = muted;
+    }
+
+    emitMediaStartedPlaying(): void {
+      for (const listener of this.listeners["media-started-playing"])
+        listener();
+    }
     private backgroundThrottling = true;
     getBackgroundThrottling(): boolean {
       return this.backgroundThrottling;
@@ -387,6 +414,7 @@ const electronMock = vi.hoisted(() => {
       "did-start-loading": [],
       "did-stop-loading": [],
       "did-finish-load": [],
+      "media-started-playing": [],
       "did-navigate": [],
       "did-navigate-in-page": [],
       "did-start-navigation": [],
@@ -686,6 +714,7 @@ const electronMock = vi.hoisted(() => {
     public readonly webContents: FakePopupWebContents;
     public closeCalls = 0;
     public destroyCalls = 0;
+    public visible = true;
     public readonly loadURLCalls: string[] = [];
     public readonly titleCalls: string[] = [];
     private closedListener: (() => void) | null = null;
@@ -713,6 +742,14 @@ const electronMock = vi.hoisted(() => {
 
     isDestroyed(): boolean {
       return this.destroyed;
+    }
+
+    hide(): void {
+      this.visible = false;
+    }
+
+    showInactive(): void {
+      this.visible = true;
     }
 
     loadURL(url: string): Promise<void> {
@@ -1738,12 +1775,130 @@ describe("DesktopBrowserCdpAdapter", () => {
 });
 
 describe("DesktopBrowserViewManager", () => {
+  it("pauses media inside nested open shadow roots when hidden", async () => {
+    const hostWindow = new FakeHostWindow({
+      webContentsId: 1,
+      contentBounds: { width: 1000, height: 800 },
+    });
+    const manager = createDesktopBrowserViewManager();
+    attachBrowserTab({
+      hostWindow,
+      manager,
+      tabId: "browser:shadow-media",
+      url: "https://example.com/video",
+    });
+    manager.setVisible({
+      hostWindow,
+      request: { tabId: "browser:shadow-media", visible: false },
+    });
+    const contents = requireFakeView(0).webContents;
+    const code =
+      contents.mainFrame.framesInSubtree[0]?.executeJavaScript.mock.calls.at(
+        -1,
+      )?.[0];
+    expect(code).toBeDefined();
+    const pause = vi.fn();
+    const nestedHost = {
+      shadowRoot: { querySelectorAll: () => [{ pause }] },
+    };
+    const host = {
+      shadowRoot: {
+        querySelectorAll: (selector: string) =>
+          selector === "*" ? [nestedHost] : [],
+      },
+    };
+    await runInNewContext(code ?? "", {
+      document: {
+        querySelectorAll: (selector: string) =>
+          selector === "*" ? [host] : [],
+      },
+    });
+    expect(pause).toHaveBeenCalledOnce();
+  });
+
+  it("keeps newly created hidden tabs silent, including autoplay after loading", () => {
+    const hostWindow = new FakeHostWindow({
+      webContentsId: 1,
+      contentBounds: { width: 1000, height: 800 },
+    });
+    const manager = createDesktopBrowserViewManager();
+    manager.createTab({
+      hostWindow,
+      tabId: "browser:media",
+      threadId: "thread-1",
+      url: "https://example.com/video",
+      viewport: { width: 800, height: 600 },
+    });
+    const contents = requireFakeView(0).webContents;
+    expect(contents.audioMuted).toBe(true);
+    for (const frame of contents.mainFrame.framesInSubtree)
+      frame.executeJavaScript.mockClear();
+    contents.emitDidFinishLoad();
+    contents.emitMediaStartedPlaying();
+    for (const frame of contents.mainFrame.framesInSubtree) {
+      expect(frame.executeJavaScript).toHaveBeenCalled();
+    }
+    expect(contents.audioMuted).toBe(true);
+  });
+
+  it.each(["setVisible", "setVisibleWithoutFocus"] as const)(
+    "%s pauses hidden media in every frame without resuming it on reveal",
+    async (method) => {
+      const hostWindow = new FakeHostWindow({
+        webContentsId: 1,
+        contentBounds: { width: 1000, height: 800 },
+      });
+      const manager = createDesktopBrowserViewManager();
+      attachBrowserTab({
+        hostWindow,
+        manager,
+        tabId: "browser:media",
+        url: "https://example.com/video",
+      });
+      const contents = requireFakeView(0).webContents;
+      expect(contents.audioMuted).toBe(false);
+      for (const frame of contents.mainFrame.framesInSubtree)
+        frame.executeJavaScript.mockClear();
+      manager[method]({
+        hostWindow,
+        request: { tabId: "browser:media", visible: false },
+      });
+      expect(contents.audioMuted).toBe(true);
+      for (const frame of contents.mainFrame.framesInSubtree) {
+        const code = frame.executeJavaScript.mock.calls.at(-1)?.[0];
+        expect(code).toBeDefined();
+        const pause = vi.fn();
+        await runInNewContext(code ?? "", {
+          document: { querySelectorAll: () => [{ pause }] },
+        });
+        expect(pause).toHaveBeenCalledOnce();
+        frame.executeJavaScript.mockClear();
+      }
+      manager[method]({
+        hostWindow,
+        request: { tabId: "browser:media", visible: true },
+      });
+      expect(contents.audioMuted).toBe(false);
+      contents.emitMediaStartedPlaying();
+      for (const frame of contents.mainFrame.framesInSubtree) {
+        expect(frame.executeJavaScript).not.toHaveBeenCalled();
+      }
+      manager.beginWindowResize(hostWindow);
+      await settlePendingCaptures(requireFakeView(0));
+      expect(contents.audioMuted).toBe(false);
+      for (const frame of contents.mainFrame.framesInSubtree) {
+        expect(frame.executeJavaScript).not.toHaveBeenCalled();
+      }
+      manager.endWindowResize(hostWindow);
+    },
+  );
+
   it.each(["local", "enrolled"])(
-    "preserves same-server reconnect tabs but clears them before a different server registration (%s daemon)",
+    "preserves native pages across server switches without publishing them to another server (%s daemon)",
     async (daemon) => {
       const threadId = "thr_23456789ab";
       const newServerThreadId = "thr_3456789abc";
-      const { manager, hostWindow } = createRendererRecoveryFixture(
+      const { manager, hostWindow, view } = createRendererRecoveryFixture(
         91,
         threadId,
       );
@@ -1895,6 +2050,34 @@ describe("DesktopBrowserViewManager", () => {
             ),
         ).toBe(true);
         expect(hasOriginalTab(3)).toBe(false);
+        expect(view.webContents.isDestroyed()).toBe(false);
+        expect(view.visible).toBe(false);
+        expect(view.webContents.audioMuted).toBe(true);
+        serverUrl = "https://first.example";
+        await writeDescriptor();
+        client.reconnect();
+        await vi.waitFor(() => expect(hasOriginalTab(4)).toBe(true));
+        expect(
+          manager.getAutomationTabs({ hostWebContentsId: 91, threadId }),
+        ).toEqual([{ tabId: "browser:a", webContents: view.webContents }]);
+        manager.attach({
+          hostWindow,
+          request: {
+            tabId: "browser:a",
+            threadId,
+            url: "https://stale.example",
+            bounds: { x: 0, y: 0, width: 640, height: 400 },
+            visible: true,
+            existingOnly: true,
+          },
+        });
+        expect(view.visible).toBe(true);
+        expect(view.webContents.loadURLCalls).toEqual([
+          "https://example.com/original",
+        ]);
+        expect(
+          manager.listTabs({ hostWebContentsId: 91, threadId: null }),
+        ).toHaveLength(1);
       } finally {
         client.stop();
         broker.dispose();
@@ -1903,6 +2086,65 @@ describe("DesktopBrowserViewManager", () => {
         await new Promise<void>((resolve) => server.close(() => resolve()));
         await rm(dataDir, { recursive: true, force: true });
       }
+    },
+  );
+
+  it.each(["releaseWindow", "destroyAll"] as const)(
+    "isolates colliding server tabs and background events, then cleans up every server through %s",
+    (cleanup) => {
+      const manager = createDesktopBrowserViewManager({
+        pagePreloadPath: "/browser-preload.js",
+      });
+      const hostWindow = new FakeHostWindow({
+        contentBounds: { width: 700, height: 450 },
+        webContentsId: 91,
+      });
+      const attach = (url: string) =>
+        attachBrowserTab({ manager, hostWindow, tabId: "browser:a", url });
+      manager.setServerOrigin("https://first.example");
+      attach("https://example.com/first");
+      const first = requireFakeView(0);
+      const popup = first.webContents.emitWindowOpen("https://example.com/login", {
+        disposition: "new-window",
+      });
+      popup.createWindow?.({});
+      const popupWindow = electronMock.fakeWindows[0]!;
+      manager.setServerOrigin("https://second.example");
+      expect(popupWindow.visible).toBe(false);
+      attach("https://example.com/second");
+      const second = requireFakeView(1);
+      const notify = vi.fn();
+      manager.subscribeAutomationTabs(notify);
+      const pushes = hostWindow.webContents.sentPayloads.length;
+      first.webContents.emitDidNavigate("https://example.com/redirected");
+      first.webContents.emitIpc(BB_DESKTOP_BROWSER_GUEST_MESSAGE_CHANNEL, {
+        channel: "background",
+        data: { secret: "first server" },
+      });
+      expect(first.webContents.emitWindowOpen("https://example.com/new")).toEqual({
+        action: "deny",
+      });
+      expect(hostWindow.webContents.sentPayloads).toHaveLength(pushes);
+      expect(notify).not.toHaveBeenCalled();
+      expect(
+        manager.getAutomationTabs({ hostWebContentsId: 91, threadId: "thread-1" }),
+      ).toEqual([{ tabId: "browser:a", webContents: second.webContents }]);
+      manager.setServerOrigin("https://first.example");
+      attach("https://stale.example");
+      expect(first.visible).toBe(true);
+      expect(popupWindow.visible).toBe(true);
+      expect(second.visible).toBe(false);
+      expect(first.webContents.getURL()).toBe("https://example.com/redirected");
+      second.webContents.close();
+      expect(
+        manager.getAutomationTabs({ hostWebContentsId: 91, threadId: "thread-1" }),
+      ).toEqual([{ tabId: "browser:a", webContents: first.webContents }]);
+      manager.setServerOrigin("https://second.example");
+      attach("https://example.com/reopened");
+      manager[cleanup](91);
+      expect(first.webContents.isDestroyed()).toBe(true);
+      expect(requireFakeView(2).webContents.isDestroyed()).toBe(true);
+      expect(popupWindow.isDestroyed()).toBe(true);
     },
   );
 

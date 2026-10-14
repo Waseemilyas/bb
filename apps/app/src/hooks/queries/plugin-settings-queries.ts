@@ -1,5 +1,6 @@
 import type {
   InstalledPlugin,
+  PluginCachePruneResponse,
   PluginSafeModeUpdateResponse,
   PluginSettingDescriptor,
   PluginSettingsResponse,
@@ -214,6 +215,12 @@ export async function setPluginSafeMode(
   return createPluginsClient(fetchImpl).experimental_setSafeMode({ enabled });
 }
 
+export async function prunePluginCache(
+  fetchImpl: FetchLike,
+): Promise<PluginCachePruneResponse> {
+  return createPluginsClient(fetchImpl).experimental_pruneCache();
+}
+
 export function usePluginSafeMode() {
   return useQuery({
     queryKey: pluginSafeModeQueryKey(),
@@ -242,14 +249,20 @@ export function usePluginList(args: { enabled: boolean }) {
   });
 }
 
+export function pluginSettingsViewQueryOptions(pluginId: string) {
+  return queryOptions({
+    queryKey: pluginSettingsViewQueryKey(pluginId),
+    queryFn: () => fetchPluginSettingsView(fetch, pluginId),
+    staleTime: 30_000,
+  });
+}
+
 export function usePluginSettingsView(
   pluginId: string,
   options: { enabled: boolean },
 ) {
   return useQuery({
-    queryKey: pluginSettingsViewQueryKey(pluginId),
-    queryFn: () => fetchPluginSettingsView(fetch, pluginId),
+    ...pluginSettingsViewQueryOptions(pluginId),
     enabled: options.enabled,
-    staleTime: 30_000,
   });
 }
