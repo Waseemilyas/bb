@@ -2152,38 +2152,23 @@ export function UpdatesSettingsSection({
             });
           });
         };
-  const appRow = (
-    <BbAppUpdateRows
-      name="Server"
-      serverHostName={serverHostName}
-      systemVersion={inventory.systemVersion}
-      appUpdate={desktopInfo === null ? appUpdate : undefined}
-      applyPending={applyAppUpdate.isPending}
-      desktopInfo={desktopInfo}
-      isDesktop={isDesktop}
-      isChecking={isChecking}
-      onApplyAppUpdate={startAppUpdate}
-      onRetryAppCheck={handleCheckForUpdates}
-      onShowAppUpdateResult={openAppUpdateResultDetails}
-      onRelaunchDesktop={relaunchDesktop}
-      onRetryDesktop={retryDesktop}
-    />
-  );
+  const useServerUpdate =
+    serverRunsSeparately || appUpdate?.desktopUpdateSupported === true;
   const serverAppRow = (
     <BbAppUpdateRows
       name="Server"
       serverHostName={serverHostName}
       systemVersion={inventory.systemVersion}
-      appUpdate={appUpdate}
+      appUpdate={useServerUpdate || desktopInfo === null ? appUpdate : undefined}
       applyPending={applyAppUpdate.isPending}
-      desktopInfo={null}
-      isDesktop={false}
+      desktopInfo={useServerUpdate ? null : desktopInfo}
+      isDesktop={!useServerUpdate && isDesktop}
       isChecking={isChecking}
       onApplyAppUpdate={startAppUpdate}
       onRetryAppCheck={handleCheckForUpdates}
       onShowAppUpdateResult={openAppUpdateResultDetails}
-      onRelaunchDesktop={null}
-      onRetryDesktop={null}
+      onRelaunchDesktop={useServerUpdate ? null : relaunchDesktop}
+      onRetryDesktop={useServerUpdate ? null : retryDesktop}
     />
   );
   const desktopClientRow = (
@@ -2224,9 +2209,7 @@ export function UpdatesSettingsSection({
       {showChangelogPreview ? <ChangelogPreviewCard /> : null}
 
       <BbUpdatesCard>
-        {serverRunsSeparately || appUpdate?.desktopUpdateSupported === true
-          ? serverAppRow
-          : appRow}
+        {serverAppRow}
         {serverRunsSeparately && desktopRowNeedsAttention(desktopInfo)
           ? desktopClientRow
           : null}
