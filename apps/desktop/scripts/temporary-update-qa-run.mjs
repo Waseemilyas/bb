@@ -66,7 +66,11 @@ try {
   assert.equal(status.current.version, qa.from);
   assert.equal(status.desktopUpdateSupported, true);
   events.push({ before: status, oldRuntimePid: runtime.pid });
-  browser = await puppeteer.launch({headless:true,args:['--no-sandbox']});
+  const browsers = createRequire(qaRequire.resolve('puppeteer'))('@puppeteer/browsers');
+  const platform = browsers.detectBrowserPlatform();
+  const buildId = await browsers.resolveBuildId(browsers.Browser.CHROME,platform,'stable');
+  const chrome = await browsers.install({browser:browsers.Browser.CHROME,buildId,platform,cacheDir:join(runDir,'chrome')});
+  browser = await puppeteer.launch({executablePath:chrome.executablePath,headless:true,args:['--no-sandbox']});
   const page = await browser.newPage();
   await page.setViewport({width:1440,height:900,deviceScaleFactor:2});
   const applyRequests = [];
@@ -76,7 +80,7 @@ try {
     if (new URL(request.url()).pathname === '/api/v1/system/app-update/apply') applyRequests.push(JSON.parse(request.postData()));
   });
   await page.goto('http://127.0.0.1:24792/settings/updates', {waitUntil:'domcontentloaded',timeout:60000});
-  const updateSelector = '[aria-label="Download the update and restart bb"]';
+  const updateSelector = '[aria-label$="Download the update and restart bb"]';
   await page.waitForSelector(updateSelector,{visible:true,timeout:60000});
   const beforeText = await page.$eval('[data-updates-domain="bb"]', element=>element.innerText);
   assert.ok(beforeText.includes('Server'), beforeText);
