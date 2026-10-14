@@ -34,6 +34,7 @@ export function createDesktopAppUpdateService(args: {
 }): AppUpdateService {
   const path = join(args.dataDir, "bb-desktop-app-update.json");
   let info: DesktopAppUpdateInfo | null = null;
+  let updaterUnavailable = false;
   let activity: SystemAppUpdateActivity = { phase: "idle" };
   let applying = false;
   const abort = new AbortController();
@@ -79,7 +80,8 @@ export function createDesktopAppUpdateService(args: {
     args.logger.warn({ error }, "Could not read desktop update state");
   });
   const unsubscribe = args.channel.subscribe((next) => {
-    info = next;
+    updaterUnavailable = next === null;
+    if (next !== null) info = next;
     args.notifyChanged();
   });
 
@@ -87,8 +89,9 @@ export function createDesktopAppUpdateService(args: {
     if (info !== null && !forceRefresh) return;
     try {
       info = await args.channel.request(forceRefresh ? "check" : "status");
+      updaterUnavailable = false;
     } catch (error) {
-      info = null;
+      updaterUnavailable = true;
       args.logger.warn(
         { error },
         "Could not read the hosting desktop's updater",
@@ -120,7 +123,7 @@ export function createDesktopAppUpdateService(args: {
             }
           : null,
       blocked:
-        info?.supported === true && version === null
+        info?.supported === true && (updaterUnavailable || version === null)
           ? {
               reason: "fetch-failed",
               message: "Couldn't check for a newer bb release.",
