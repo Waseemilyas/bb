@@ -64,7 +64,6 @@ describe("hosting desktop update control", () => {
       });
       const install = vi.fn(async () => undefined);
       install.mockRejectedValueOnce(new Error("Installer failed"));
-      const onError = vi.fn();
       attachServerUpdateControl({
         child: child.childProcess,
         getInfo: () => ({
@@ -79,7 +78,6 @@ describe("hosting desktop update control", () => {
         check: async () => undefined,
         install,
         subscribe: () => () => undefined,
-        onError,
       });
       try {
         const exit = await child.exit;

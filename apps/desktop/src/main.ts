@@ -2549,10 +2549,6 @@ async function spawnOwnedRuntime(
       check: checkDesktopUpdates,
       install: installDesktopUpdate,
       subscribe: (listener) => updater.subscribe(listener),
-      onError: (error) =>
-        desktopLogger.error(
-          `Could not install the server update: ${String(error)}`,
-        ),
     });
   }
   const runtime: DesktopRuntime = {
