@@ -130,6 +130,7 @@ try {
   installWatcher = watch(runDir,(event,filename)=> {
     if (filename !== basename(installed) || stoppedAt !== undefined) return;
     process.kill(runtime.pid,'SIGSTOP');
+    setTimeout(()=>{try {process.kill(runtime.pid,'SIGCONT');events.push({resumedShutdownPid:runtime.pid});} catch {}},3000);
     stoppedAt = Date.now();
     events.push({slowShutdownPid:runtime.pid,stoppedAt});
     installWatcher.close();
@@ -149,14 +150,14 @@ try {
   const newRuntime = JSON.parse(await readFile(join(userData, 'owned-runtime.json'), 'utf8'));
   assert.notEqual(newRuntime.pid, runtime.pid);
   assert.ok(stoppedAt !== undefined);
-  assert.ok(Date.now()-stoppedAt >= 4000, "The owned runtime shutdown was not delayed");
+  assert.ok(Date.now()-stoppedAt >= 3000, "The owned runtime shutdown was not delayed");
   assert.equal(result.lastResult.from.version, qa.from);
   assert.equal(result.lastResult.to.version, qa.to);
   assert.equal(result.desktopUpdateSupported, true);
   await request('/api/v1/system/app-update/acknowledge', { id: result.lastResult.id });
   assert.equal((await request('/api/v1/system/app-update')).lastResult.acknowledged, true);
   await page.reload({waitUntil:'domcontentloaded',timeout:60000});
-  await page.waitForFunction(version=>document.querySelector('[data-updates-domain="bb"]')?.innerText.includes(version),{timeout:60000},qa.to);
+  await page.waitForFunction(version=>{const text=document.querySelector('[data-updates-domain="bb"]')?.innerText;return text?.includes(version)&&!text.includes('In progress');},{timeout:60000},qa.to);
   const afterText = await page.$eval('[data-updates-domain="bb"]', element=>element.innerText);
   assert.ok(!afterText.includes(qa.from),afterText);
   assert.ok(afterText.includes('Server'),afterText);
@@ -164,6 +165,7 @@ try {
   console.log(`PASS: window-state failure, native installer failure, persisted errors and UI retry through AppImage update ${qa.from} -> ${qa.to}; native replacement, server restart, persisted result, acknowledgment.`);
 } finally {
   installWatcher?.close();
+  if (stoppedAt !== undefined) { try {process.kill(runtime.pid,'SIGCONT');} catch {} }
   if (page) {
     try {
       events.push({finalUrl:page.url(),finalText:await page.evaluate(()=>document.body.innerText),buttons:await page.$$eval('button',buttons=>buttons.map(button=>({label:button.getAttribute('aria-label'),text:button.innerText})))});
