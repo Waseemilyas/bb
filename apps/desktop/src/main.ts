@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { attachServerUpdateControl } from "./server-update-control.js";
 import { registerServerChoiceIpc } from "./server-choice-ipc.js";
 import { randomUUID } from "node:crypto";
@@ -427,6 +428,7 @@ let startupErrorPage: StartupErrorPage | null = null;
 let startupActionPending = false;
 let connectSignInWindow: BrowserWindow | null = null;
 let stoppingForQuit = false;
+let appImageRelaunchPath: string | null = null;
 let quitting = false;
 let serverTargetStore: ServerTargetStore | null = null;
 let connectServerSync: ConnectServerSync | null = null;
@@ -2319,6 +2321,15 @@ function handleBeforeQuit(event: Event): void {
   event.preventDefault();
   stoppingForQuit = true;
   void finishQuit().finally(() => {
+    if (appImageRelaunchPath !== null) {
+      app.releaseSingleInstanceLock();
+      const replacement = spawn(appImageRelaunchPath, process.argv.slice(1), {
+        detached: true,
+        stdio: "ignore",
+      });
+      replacement.on("error", (error) => desktopLogger.error(error.message));
+      replacement.unref();
+    }
     app.quit();
   });
 }
@@ -2549,10 +2560,6 @@ async function spawnOwnedRuntime(
       check: checkDesktopUpdates,
       install: installDesktopUpdate,
       subscribe: (listener) => updater.subscribe(listener),
-      onError: (error) =>
-        desktopLogger.error(
-          `Could not install the server update: ${String(error)}`,
-        ),
     });
   }
   const runtime: DesktopRuntime = {
@@ -3086,8 +3093,9 @@ async function runDesktopApp(): Promise<void> {
       process.platform === "linux" && process.env.APPIMAGE
         ? {
             path: process.env.APPIMAGE,
-            relaunch: (execPath) =>
-              app.relaunch({ execPath, args: process.argv.slice(1) }),
+            relaunch: (execPath) => {
+              appImageRelaunchPath = execPath;
+            },
           }
         : null,
     ),
