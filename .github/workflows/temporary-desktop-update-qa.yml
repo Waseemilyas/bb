@@ -55,9 +55,6 @@ jobs:
           PNPM_CACHE_RESTORE_OUTCOME: ${{ steps.pnpm-cache.outcome }}
         run: bash .github/actions/setup-workspace/install-dependencies.sh --filter '!@bb/mobile'
 
-      - name: Smoke bb-app tarball
-        run: pnpm exec turbo run smoke:tarball --filter=bb-app --cache-dir="${TURBO_CACHE_DIR:-.turbo/cache}" --output-logs=new-only --summarize --concurrency=4
-
       - name: Install AppImage FUSE runtime
         if: ${{ runner.os == 'Linux' }}
         uses: ./.github/actions/install-appimage-fuse

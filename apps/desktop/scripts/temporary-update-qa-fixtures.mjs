@@ -37,7 +37,7 @@ for (const version of [oldVersion, target]) {
   await writeFile(mainPath, main);
   await rm(archive);
   await rm(`${archive}.unpacked`, { recursive: true, force: true });
-  await asar.createPackageWithOptions(extracted, archive, { unpackDir: 'node_modules', unpack: '**/bb-app-bridge.mjs' });
+  await asar.createPackageWithOptions(extracted, archive, { unpackDir: 'node_modules', unpack: 'bb-app-bridge.mjs' });
   await readFile(join(`${archive}.unpacked`, 'dist', 'bb-app-bridge.mjs'));
   const config = { ...originalConfig, afterPack: undefined, directories: { ...originalConfig.directories, output }, publish: [{ provider: 'generic', url: 'http://127.0.0.1:24791/' }] };
   const configPath = join(fixtureRoot, 'builder.json');
