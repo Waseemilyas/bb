@@ -1,0 +1,99 @@
+name: Approved stack native UI QA
+on:
+  push:
+    branches:
+      - bb/updates-5492-native-ui-qa
+concurrency:
+  group: desktop-update-qa-${{ github.sha }}
+  cancel-in-progress: false
+env:
+  PNPM_VERSION: "9.15.0"
+  QA_PRODUCT_HEAD: "942f476c18dbeabb0d84b1c760a73e22e3becb3b"
+jobs:
+  package-smoke:
+    name: Package Smoke (${{ matrix.os }}, Node ${{ matrix.node-version }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: blacksmith-4vcpu-ubuntu-2404
+            node-version: "22.x"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup workspace tools
+        uses: ./.github/actions/setup-workspace-tools
+        with:
+          node-version: ${{ matrix.node-version }}
+          pnpm-version: ${{ env.PNPM_VERSION }}
+
+      - name: Restore workspace caches
+        id: cache
+        timeout-minutes: 1
+        continue-on-error: true
+        uses: ./.github/actions/cache-workspace
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache-prefix: package-smoke
+          turbo-cache-max-size-mb: ${{ runner.os == 'macOS' && '256' || '1024' }}
+
+      - name: Restore pnpm cache
+        if: runner.os == 'macOS'
+        id: pnpm-cache
+        timeout-minutes: 1
+        continue-on-error: true
+        uses: ./.github/actions/cache-pnpm
+
+      - name: Install dependencies
+        timeout-minutes: 5
+        env:
+          TURBO_CACHE_RESTORE_OUTCOME: ${{ steps.cache.outcome }}
+          PNPM_CACHE_RESTORE_OUTCOME: ${{ steps.pnpm-cache.outcome }}
+        run: bash .github/actions/setup-workspace/install-dependencies.sh --filter '!@bb/mobile'
+
+      - name: Install AppImage FUSE runtime
+        if: ${{ runner.os == 'Linux' }}
+        uses: ./.github/actions/install-appimage-fuse
+        timeout-minutes: 5
+        with:
+          package: libfuse2t64
+
+      - name: Package Linux AppImage
+        if: ${{ runner.os == 'Linux' }}
+        run: pnpm exec turbo run desktop:build:linux --filter=@bb/desktop --cache-dir="${TURBO_CACHE_DIR:-.turbo/cache}" --output-logs=new-only --summarize
+
+      - name: Install isolated Chrome for Testing driver
+        run: |
+          QA_BROWSER_DIR=$(mktemp -d)
+          echo "QA_BROWSER_DIR=$QA_BROWSER_DIR" >> "$GITHUB_ENV"
+          npm install --prefix "$QA_BROWSER_DIR" --no-audit --no-fund puppeteer@24.37.5
+
+      - name: Prepare isolated desktop update QA artifacts
+        if: ${{ runner.os == 'Linux' }}
+        run: node apps/desktop/scripts/temporary-update-qa-fixtures.mjs
+
+      - name: Exercise real desktop server update
+        if: ${{ runner.os == 'Linux' }}
+        run: xvfb-run -a node apps/desktop/scripts/temporary-update-qa-run.mjs
+
+      - name: Upload isolated desktop update QA artifacts
+        if: ${{ always() && runner.os == 'Linux' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: desktop-update-qa
+          path: apps/desktop/release/update-qa/
+          compression-level: 0
+          retention-days: 3
+
+      - name: Smoke Linux AppImage mount lifecycle
+        if: ${{ runner.os == 'Linux' }}
+        run: xvfb-run -a pnpm exec turbo run smoke:appimage-lifecycle --filter=@bb/desktop --force --cache-dir="${TURBO_CACHE_DIR:-.turbo/cache}" --output-logs=new-only
+
+      - name: Bound saved Turbo cache
+        run: node scripts/prune-turbo-cache.mjs --dir .turbo/cache --max-size-mb ${{ runner.os == 'macOS' && '256' || '1024' }} --keep-run-summaries .turbo/runs
+
