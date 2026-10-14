@@ -37,7 +37,6 @@ import {
 import {
   archivedThreadsQueryOptions,
   childThreadsFallbackQueryOptions,
-  COMPACT_THREAD_TIMELINE_SEGMENT_LIMIT,
   didThreadDetailBootstrapRefreshAfterMount,
   resolveSidebarDerivedThreadList,
   selectChildThreads,
@@ -60,6 +59,7 @@ import {
 } from "../cache-owners/thread-open-cache-owner";
 import { removeThreadScopedQueries } from "../cache-owners/mutation-cache-effects";
 import { listSidebarNavigationThreads } from "../cache-owners/query-cache";
+import { COMPACT_THREAD_TIMELINE_SEGMENT_LIMIT } from "../cache-owners/thread-timeline-push-owner";
 import {
   makeProjectWithThreadsResponse,
   makeSidebarBootstrapResponse,
@@ -260,11 +260,10 @@ beforeEach(() => {
   vi.mocked(sdk.threads.timeline).mockResolvedValue(
     makeThreadTimelineResponse({
       timelinePage: {
-        kind: "latest",
-        segmentLimit: 100,
         returnedSegmentCount: 0,
-        hasOlderRows: false,
         olderCursor: null,
+        historySnapshot: "snapshot-1",
+        olderRowsSourceSeqEnd: null,
       },
     }),
   );
@@ -326,11 +325,10 @@ describe("useThreadDetailBootstrap", () => {
         },
       ],
       timelinePage: {
-        kind: "latest",
-        segmentLimit: 100,
         returnedSegmentCount: 1,
-        hasOlderRows: false,
         olderCursor: null,
+        historySnapshot: "snapshot-1",
+        olderRowsSourceSeqEnd: null,
       },
       maxSeq: 7,
     });
@@ -1017,11 +1015,10 @@ describe("thread open cache retention", () => {
     const firstTimeline = makeThreadTimelineResponse({
       rows: [existingRow],
       timelinePage: {
-        kind: "latest",
-        segmentLimit: 100,
         returnedSegmentCount: 1,
-        hasOlderRows: false,
         olderCursor: null,
+        historySnapshot: "snapshot-1",
+        olderRowsSourceSeqEnd: null,
       },
       maxSeq: 7,
     });

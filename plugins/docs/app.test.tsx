@@ -1573,7 +1573,12 @@ describe("Docs nav panel", () => {
     );
     expect(slot.queryByRole("button", { name: "Add to chat" })).toBeNull();
     expect(slot.queryByRole("button", { name: "Mention in chat" })).toBeNull();
-    expect(slot.queryByRole("button", { name: "Open in Docs" })).toBeNull();
+    fireEvent.click(slot.getByRole("button", { name: "Open in Docs" }));
+    expect(slot.navigateCalls).toContainEqual({
+      method: "toPluginPanel",
+      path: "docs",
+      options: { subPath: "personal/plans/panel-release.md" },
+    });
   });
 
   it("preserves the file opener host through autosave, conflict overwrite, and reload", async () => {
@@ -1715,11 +1720,7 @@ describe("Docs nav panel", () => {
         );
         expect(iframe?.getAttribute("sandbox")).toBe("allow-scripts");
         expect(iframe?.title).toBe(surface === "panel" ? "Metrics" : path);
-        expect(
-          iframe?.classList.contains(
-            surface === "panel" ? "min-h-[32rem]" : "min-h-0",
-          ),
-        ).toBe(true);
+        expect(iframe?.classList.contains("min-h-0")).toBe(true);
       });
       expect(slot.queryByRole("button", { name: "View source" })).toBeNull();
     },
