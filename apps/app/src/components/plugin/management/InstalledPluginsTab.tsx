@@ -115,7 +115,6 @@ export function InstalledPluginRow({
           </PluginSignalLogo>
         }
         title={plugin.name ?? plugin.id}
-        experimental={plugin.experimental}
         byline={
           isLocal ? "Local" : catalogEntry !== undefined ? (
             <PluginCardAuthor entry={catalogEntry} />

@@ -38,10 +38,6 @@ the current engine values and the entries for its generated surfaces.
 
 - `bb.server` (required) — backend entry; see backend-foundation.md.
 - `bb.app` (optional) — frontend entry; see frontend-registration.md.
-- `bb.experimental` (optional) — `true` shows an Experimental badge on plugin
-  cards and details; omit it or set false for no badge. Marketplace v2 entries
-  use `experimental: true` before installation; BB Official listings inherit
-  the manifest flag.
 - `bb.host` (optional, singular) — full-trust Node 22 ESM entry that the
   daemon runs on hosts. The server entry calls it through typed host RPC, and
   provider bridges ship in it; see "bb.hosts" in backend-foundation.md.
@@ -58,7 +54,9 @@ the current engine values and the entries for its generated surfaces.
 - `bb.name` and `bb.description` (required) — non-empty human-facing plugin
   identity. The top-level package `name` remains the package identity and
   source of the plugin id. distribution.md covers how the store uses
-  `bb.description`.
+  `bb.description`. End `bb.name` (or a marketplace `displayName`) with
+  `[Experimental]` to show an Experimental badge on plugin cards and details;
+  the suffix itself is hidden there.
 - `bb.branding` (required) — declare `bb.branding.icon` as either the plugin's
   canonical BB icon name, such as `Zap`, or a plugin-relative compact SVG path
   such as `./assets/icon.svg`. A namespaced `"<pluginId>/<name>"` glyph is

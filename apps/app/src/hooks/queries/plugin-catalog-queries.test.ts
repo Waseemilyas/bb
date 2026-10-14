@@ -135,7 +135,6 @@ describe("plugin catalog queries", () => {
           pluginId: "todoist",
           displayName: "Todoist",
           description: "Personal task capture",
-          experimental: false,
           icon: "CheckList",
           iconUrl: null,
           iconTinted: false,

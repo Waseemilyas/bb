@@ -1,7 +1,7 @@
 [
   {
     "id": "account-pool",
-    "name": "Account Pooler",
+    "name": "Account Pooler [Experimental]",
     "icon": "Layers"
   },
   {
@@ -71,7 +71,7 @@
   },
   {
     "id": "environment-modal-sandbox",
-    "name": "Modal Sandbox",
+    "name": "Modal Sandbox [Experimental]",
     "icon": null
   },
   {
@@ -121,7 +121,7 @@
   },
   {
     "id": "bb--storage-retention",
-    "name": "Storage & retention",
+    "name": "Storage & retention [Experimental]",
     "icon": null
   },
   {

@@ -1069,10 +1069,6 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
             identity?.manifest.description ??
             null,
           name: loadedPlugin?.manifest.name ?? identity?.manifest.name ?? null,
-          experimental:
-            loadedPlugin?.manifest.experimental ??
-            identity?.manifest.experimental ??
-            false,
           ...catalogMetadata,
           icon:
             loadedPlugin?.manifest.branding.icon ??

@@ -49,6 +49,11 @@
       "types": "./src/plugin-cli.ts",
       "default": "./src/plugin-cli.ts"
     },
+    "./plugin-display-name": {
+      "source": "./src/plugin-display-name.ts",
+      "types": "./src/plugin-display-name.ts",
+      "default": "./src/plugin-display-name.ts"
+    },
     "./plugin-icon": {
       "source": "./src/plugin-icon.ts",
       "types": "./src/plugin-icon.ts",

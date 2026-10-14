@@ -832,7 +832,7 @@ Two host-daemon environment variables reach the Claude Code bridge:
 such as a CI runner (mint it with `claude setup-token`). See the
 `claude-code-provider` skill.
 
-### Account Pooler
+### Account Pooler [Experimental]
 
 The builtin Account Pooler plugin pools Claude and Codex accounts behind the bb
 server. It is disabled on fresh installations (`bb plugin enable
@@ -851,10 +851,6 @@ Inspect and change them with `bb pool config` and
 older builds are not migrated. Provider routing is persisted per provider and
 defaults on; `bb pool routing <claude|codex> --off` stops it. See the
 `account-pool` skill for accounts, ordering, and routing.
-
-### Experimental plugin status
-
-A plugin package.json can opt into an Experimental badge with `bb.experimental: true`. Omitted or false means no badge. Marketplace v2 entries can declare `experimental: true` for catalog listings before installation; BB Official entries inherit the plugin manifest value. Installed and catalog SDK responses and the corresponding `bb plugin list --json` and `bb plugin catalog search --json` output expose `experimental`.
 
 ### Concurrency limit
 

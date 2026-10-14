@@ -1,4 +1,5 @@
 import { PluginExperimentalBadge } from "@/components/plugin/management/PluginExperimentalBadge";
+import { splitPluginDisplayName } from "@bb/domain/plugin-display-name";
 import { PluginCardAuthorAvatar } from "@/components/plugin/management/PluginCard";
 import { CURATED_PLUGIN_MARKETPLACE_NAME } from "@bb/server-contract";
 import { useSyncExternalStore } from "react";
@@ -206,13 +207,14 @@ export function CatalogPluginDetail({
   const installJob = useCatalogEntryInstallJob(entry);
   const { mutate: cancelInstall } = useCancelPluginInstallJob();
   const overflowItems = copyMarketplaceLinkItems(pluginMarketplaceUrl(entry));
+  const entryTitle = splitPluginDisplayName(entry.displayName);
   return (
     <ResourceDetailPage
       maxWidthClassName="max-w-5xl"
       leading={<CatalogEntryIconChip entry={entry} compact />}
       leadingClassName="size-6"
-      title={entry.displayName}
-      titleMeta={entry.experimental ? <PluginExperimentalBadge /> : undefined}
+      title={entryTitle.name}
+      titleMeta={entryTitle.experimental ? <PluginExperimentalBadge /> : undefined}
       metadataLeading={<PluginCardAuthorAvatar entry={entry} />}
       metadata={<PluginMarketplaceByline entry={entry} />}
       actions={
@@ -440,6 +442,7 @@ export function PluginDetail({
     settingsSections.some((section) => section.pluginId === plugin.id);
 
   const pluginName = plugin.name ?? plugin.id;
+  const pluginTitle = splitPluginDisplayName(pluginName);
   const marketplaceUrl = pluginMarketplaceUrl(
     catalogEntry ?? {
       marketplace: plugin.catalogMarketplaceName,
@@ -480,8 +483,8 @@ export function PluginDetail({
     <ResourceDetailPage
       maxWidthClassName="max-w-5xl"
       leading={<PluginLogo plugin={plugin} className="size-4" />}
-      title={pluginName}
-      titleMeta={plugin.experimental ? <PluginExperimentalBadge /> : undefined}
+      title={pluginTitle.name}
+      titleMeta={pluginTitle.experimental ? <PluginExperimentalBadge /> : undefined}
       metadataLeading={
         bylineEntry === undefined ? undefined : (
           <PluginCardAuthorAvatar entry={bylineEntry} />

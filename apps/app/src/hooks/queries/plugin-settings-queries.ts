@@ -43,7 +43,6 @@ export interface PluginListItem {
   statusDetail: string | null;
   description: string | null;
   name: string | null;
-  experimental?: boolean;
   icon: string | null;
   compactIconUrl: string | null;
   logoUrl: string | null;
@@ -103,7 +102,6 @@ export function toPluginListItem(plugin: InstalledPlugin): PluginListItem {
     statusDetail: plugin.statusDetail,
     description: plugin.description,
     name: plugin.name,
-    experimental: plugin.experimental ?? false,
     icon: plugin.icon,
     compactIconUrl: plugin.iconUrl,
     logoUrl: plugin.logoUrl,
