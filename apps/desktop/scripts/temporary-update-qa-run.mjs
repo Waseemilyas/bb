@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { createReadStream } from 'node:fs';
 import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -29,7 +28,7 @@ const feed = createServer(async (req, res) => {
 });
 await new Promise(resolve => feed.listen(24791, '127.0.0.1', resolve));
 await mkdir(dataDir);
-await copyFile(join(artifacts, `bb-${qa.from}-x64.AppImage`), installed);
+await copyFile(join(artifacts, `bb-${qa.from}-x86_64.AppImage`), installed);
 await chmod(installed, 0o755);
 const env = { ...process.env, BB_DATA_DIR: dataDir, BB_SERVER_PORT: '24792', BB_HOST_DAEMON_PORT: '24793', BB_TELEMETRY: 'false', BB_DESKTOP_OPEN_DEVTOOLS: '0', XDG_CACHE_HOME: join(runDir, 'cache') };
 delete env.APPIMAGE_EXTRACT_AND_RUN;
