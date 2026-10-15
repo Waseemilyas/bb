@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createScriptedEchoRuntime } from "@bb/agent-runtime/test";
 import { getThread, listEvents } from "@bb/db";
@@ -71,10 +71,20 @@ describe("checkpoint identity through runtime, ingestion, and editing", () => {
         environmentId: environment.id,
       });
       const scriptPath = join(harness.config.dataDir, "resumed-child.json");
+      const processLogPath = join(
+        harness.config.dataDir,
+        "native-processes.log",
+      );
+      const spawnedPids = () =>
+        readFileSync(processLogPath, "utf8")
+          .split("\n")
+          .filter((line) => line.startsWith("spawn:"))
+          .map((line) => Number(line.split(":")[1]));
       writeFileSync(
         scriptPath,
         JSON.stringify({
           strictTurnTargets: true,
+          processLogPath,
           turns: [
             [
               {
@@ -82,6 +92,25 @@ describe("checkpoint identity through runtime, ingestion, and editing", () => {
                 params: {
                   threadId: "root",
                   turn: { id: "root-turn", status: "inProgress" },
+                },
+              },
+              {
+                method: "item/started",
+                params: {
+                  threadId: "root",
+                  turnId: "root-turn",
+                  item: {
+                    type: "commandExecution",
+                    id: "running-tool",
+                    command: "fixture work",
+                    cwd: harness.config.dataDir,
+                    status: "inProgress",
+                    commandActions: [],
+                    aggregatedOutput: null,
+                    exitCode: null,
+                    durationMs: null,
+                    processId: null,
+                  },
                 },
               },
               {
@@ -149,7 +178,11 @@ describe("checkpoint identity through runtime, ingestion, and editing", () => {
       };
       try {
         await runtime.startThread({ ...args, threadId: thread.id });
+        expect(spawnedPids()).toHaveLength(1);
+        const targetPid = spawnedPids()[0]!;
         await runtime.startThread({ ...args, threadId: sibling.id });
+        expect(spawnedPids()).toHaveLength(2);
+        const siblingPid = spawnedPids()[1]!;
         await runtime.runTurn({
           threadId: thread.id,
           options,
@@ -159,7 +192,7 @@ describe("checkpoint identity through runtime, ingestion, and editing", () => {
         await runtime.runTurn({
           threadId: sibling.id,
           options,
-          input: [{ type: "text", text: "/wait-for-interrupt", mentions: [] }],
+          input: [{ type: "text", text: "sibling work", mentions: [] }],
           clientRequestId: "creq_23456789ac",
         });
         const activeTurnId = runtime.getActiveTurnId(thread.id);
@@ -173,6 +206,18 @@ describe("checkpoint identity through runtime, ingestion, and editing", () => {
             clientRequestId: "creq_23456789ad",
           }),
         ).resolves.toEqual({ status: "steered" });
+        for (const activeThread of [thread, sibling]) {
+          expect(events).toContainEqual(
+            expect.objectContaining({
+              type: "item/started",
+              threadId: activeThread.id,
+              item: expect.objectContaining({
+                type: "commandExecution",
+                status: "pending",
+              }),
+            }),
+          );
+        }
         const response = await harness.app.request("/internal/session/events", {
           method: "POST",
           headers: internalAuthHeaders(harness),
@@ -203,6 +248,10 @@ describe("checkpoint identity through runtime, ingestion, and editing", () => {
           threadId: stop.command.threadId,
         });
         await reportQueuedCommandSuccess(harness, stop, stopped);
+        expect(() => process.kill(targetPid, 0)).toThrow(
+          expect.objectContaining({ code: "ESRCH" }),
+        );
+        expect(process.kill(siblingPid, 0)).toBe(true);
         expect(events).toContainEqual(
           expect.objectContaining({
             type: "turn/completed",

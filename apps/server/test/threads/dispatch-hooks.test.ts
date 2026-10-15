@@ -1248,6 +1248,9 @@ describe("Codex agent messages", () => {
         }
         const queued = listQueuedThreadMessages(harness.db, thread.id);
         expect(queued).toHaveLength(2);
+        expect(
+          queuedRows(harness, thread.id).map((row) => row.waitingOn?.kind),
+        ).toEqual(["plugin", "plugin"]);
         await runQueuedMessageDispatch(harness.deps, {
           kind: "plugin-recheck",
         });
@@ -1255,6 +1258,10 @@ describe("Codex agent messages", () => {
           listQueuedThreadMessages(harness.db, thread.id).map((row) => row.id),
         ).toEqual(queued.map((row) => row.id));
         expect(turnRequests(harness, thread.id)).toHaveLength(before);
+        expect(getThread(harness.db, thread.id)?.status).toBe("active");
+        expect(
+          listQueuedThreadCommands(harness, "turn.submit", thread.id),
+        ).toHaveLength(0);
 
         const connection = disconnect
           ? vi.spyOn(harness.hub, "hasDaemonForHost").mockReturnValue(false)
