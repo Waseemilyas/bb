@@ -272,9 +272,13 @@ function PluginTitle({
   displayName: string;
   heading?: boolean;
 }) {
-  const { name, experimental } = splitPluginDisplayName(displayName);
-  const badge = experimental ? (
-    <span className="marketplace-experimental-badge">Experimental</span>
+  const { name, tag } = splitPluginDisplayName(displayName);
+  const badge = tag ? (
+    <span
+      className={`marketplace-plugin-tag marketplace-plugin-tag-${tag.tone}`}
+    >
+      {tag.label}
+    </span>
   ) : null;
   return heading ? (
     <div className="marketplace-plugin-title">

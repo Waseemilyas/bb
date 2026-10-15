@@ -654,7 +654,7 @@ spec grows a field.
 ## The rebuilt ACP bridge kit (`@get-bb/plugin-sdk/provider-bridge/acp-next`)
 
 **Experimental preview (2026-10-09).** Published beside the original kit so
-the two can be compared. The built-in "ACP providers (new adapter)" plugin
+the two can be compared. The built-in "ACP providers [New adapter]" plugin
 (`plugins/provider-acp-next`, off by default and mutually exclusive with the
 original ACP plugin) re-exports its `experimental_acpProviderBridge`.
 

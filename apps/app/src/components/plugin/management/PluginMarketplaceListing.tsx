@@ -20,7 +20,7 @@ import type { PluginCatalogSearchEntry } from "@/hooks/queries/plugin-catalog-qu
 import { PluginOverviewMarkdown } from "@/components/plugin/management/PluginOverviewMarkdown";
 import { getPluginsRoutePath } from "@/lib/route-paths";
 import { PluginCardAuthorName } from "./PluginCard";
-import { PluginExperimentalBadge } from "./PluginExperimentalBadge";
+import { PluginNameTag } from "./PluginNameTag";
 import { splitPluginDisplayName } from "@bb/domain/plugin-display-name";
 import { catalogEntryDetailKey } from "./installed-plugin-catalog";
 import {
@@ -319,7 +319,7 @@ export function PluginMoreFromAuthorSection({
               leading={<CatalogEntryIconChip entry={candidate} />}
               title={title.name}
               titleMeta={
-                title.experimental ? <PluginExperimentalBadge /> : undefined
+                title.tag ? <PluginNameTag tag={title.tag} /> : undefined
               }
               description={candidate.description || undefined}
               trailingVisual={<ResourceRowDetailChevron />}

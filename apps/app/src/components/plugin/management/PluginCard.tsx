@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { PluginDisplayName } from "./PluginExperimentalBadge";
+import { PluginDisplayName } from "./PluginNameTag";
 import {
   ResourceBrowseCard,
   ResourceBrowseGrid,
