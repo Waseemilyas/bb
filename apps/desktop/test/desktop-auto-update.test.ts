@@ -504,3 +504,71 @@ describe("native installer acceptance", () => {
     },
   );
 });
+
+describe("macOS native preparation", () => {
+  it.runIf(process.platform === "darwin")(
+    "waits for native readiness and prepares again after failure",
+    async () => {
+      const nativeUpdater = new EventEmitter();
+      const updater = new AppImageUpdater(null, {
+        version: "0.0.1",
+        name: "bb",
+        isPackaged: true,
+        appUpdateConfigPath: "",
+        userDataPath: "",
+        baseCachePath: "",
+        whenReady: async () => undefined,
+        relaunch: () => undefined,
+        quit: () => undefined,
+        onQuit: () => undefined,
+      });
+      const check = vi.spyOn(updater, "checkForUpdates").mockImplementation(async () => {
+        updater.emit("update-available", createUpdateInfo("0.46.0"));
+        return createUpdateCheckResult("0.46.0");
+      });
+      const download = vi.spyOn(updater, "downloadUpdate").mockImplementation(async () => {
+        updater.emit("update-downloaded", createDownloadedEvent("0.46.0"));
+        return ["/tmp/bb.zip"];
+      });
+      const install = vi.spyOn(updater, "quitAndInstall").mockImplementation(() => undefined);
+      const service = createDesktopAutoUpdateService({
+        currentVersion: "0.0.1",
+        enabled: true,
+        forceDevUpdateConfig: false,
+        logger: createLogger(createLoggerMessages()),
+        platform: "macos",
+        updater: createElectronAutoUpdaterAdapter(updater, nativeUpdater, null),
+      });
+
+      await service.checkForUpdates();
+      expect(service.getInfo()).toMatchObject({
+        downloadState: "downloading",
+        updateDownloaded: false,
+        pendingVersion: null,
+      });
+      updater.emit("error", new Error("Native preparation failed"));
+      expect(service.getInfo()).toMatchObject({
+        downloadState: "failed",
+        updateDownloaded: false,
+        pendingVersion: null,
+      });
+      await service.installUpdate();
+      expect(install).not.toHaveBeenCalled();
+
+      await service.checkForUpdates();
+      expect(check).toHaveBeenCalledTimes(2);
+      expect(download).toHaveBeenCalledTimes(2);
+      expect(service.getInfo().updateDownloaded).toBe(false);
+      nativeUpdater.emit("update-downloaded");
+      expect(service.getInfo()).toMatchObject({
+        downloadState: "downloaded",
+        updateDownloaded: true,
+        pendingVersion: "0.46.0",
+      });
+      const installing = service.installUpdate();
+      expect(install).toHaveBeenCalledTimes(1);
+      nativeUpdater.emit("before-quit-for-update");
+      await installing;
+    },
+  );
+});
