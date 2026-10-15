@@ -10,6 +10,12 @@ and compaction through the corresponding core `bb thread` commands.
 `bb thread clear-goal <id>` clears its durable active Goal and waits for provider
 confirmation. Inspect the thread before recovery actions.
 
+Messages from other BB threads wait in the durable queue while a Codex turn is
+starting or running. They dispatch after the current turn finishes; do not resend
+a queued message. Human messages still steer. For an urgent agent correction,
+use `bb thread queue send <thread> <message-id> --mode steer` to send the queued
+message now. Archive retains its normal undo grace, then stops that thread.
+
 Codex questions from `request_user_input` pause the turn until answered.
 Questions from `request_user_input_async` do not pause it: the plugin opens a
 question card for each one that stays open for up to an hour after the turn

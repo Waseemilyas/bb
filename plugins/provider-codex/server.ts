@@ -10,6 +10,21 @@ export default function plugin(bb: BbPluginApi) {
   registerCodexAiService(bb);
   registerAsyncQuestions(bb);
 
+  bb.experimental_hooks.on("message.dispatch", (context) => {
+    if (
+      context.thread.providerId === "codex" &&
+      context.senderThreadId !== null &&
+      (context.thread.status === "active" ||
+        context.thread.status === "starting")
+    ) {
+      return {
+        action: "wait",
+        reason: "Waiting for the current Codex turn to finish",
+      };
+    }
+    return { action: "proceed" };
+  });
+
   bb.settings.define({
     memoryEnabled: {
       type: "boolean",

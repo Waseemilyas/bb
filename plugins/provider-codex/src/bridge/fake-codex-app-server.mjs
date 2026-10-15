@@ -382,16 +382,17 @@ function takeScriptedTurnIndex() {
 async function runScriptFileTurn(threadId) {
   const turn = scriptedTurns[takeScriptedTurnIndex()] ?? [];
   for (const entry of turn) {
-    const params = withThreadId(entry.params ?? {}, threadId);
+    const nativeThreadId = entry.nativeThreadId ?? threadId;
+    const params = withThreadId(entry.params ?? {}, nativeThreadId);
     if (entry.kind === "request") {
       await requestFromClient(entry.method, params);
       continue;
     }
     if (entry.method === "turn/started") {
-      openTurnIdsByThreadId.set(threadId, params.turn.id);
+      openTurnIdsByThreadId.set(nativeThreadId, params.turn.id);
     }
     if (entry.method === "turn/completed") {
-      openTurnIdsByThreadId.delete(threadId);
+      openTurnIdsByThreadId.delete(nativeThreadId);
     }
     notify(entry.method, params);
   }
@@ -647,9 +648,27 @@ async function handleRequest(message) {
       return;
     }
     case "turn/steer":
+      if (
+        script?.strictTurnTargets &&
+        params.expectedTurnId !== openTurnIdsByThreadId.get(params.threadId)
+      ) {
+        respondError(
+          id,
+          -32600,
+          `expected active turn id \`${params.expectedTurnId}\` but found \`${openTurnIdsByThreadId.get(params.threadId)}\``,
+        );
+        return;
+      }
       respond(id, {});
       return;
     case "turn/interrupt": {
+      if (
+        script?.strictTurnTargets &&
+        params.turnId !== openTurnIdsByThreadId.get(params.threadId)
+      ) {
+        respondError(id, -32600, "cannot interrupt a different active turn");
+        return;
+      }
       interruptAttempts += 1;
       if (
         script?.interruptError &&

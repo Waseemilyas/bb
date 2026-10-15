@@ -39,6 +39,7 @@ export interface QueueWaitPluginDirectory {
 
 export type QueuedMessageDispatchWake =
   | { kind: "thread-ready"; threadId: string }
+  | { kind: "turn-completed"; threadId: string }
   | { kind: "turn-started"; threadId: string }
   | { kind: "workspace-ready"; threadId: string }
   | { kind: "provisioning-ended"; threadId: string }
@@ -115,6 +116,7 @@ function dispatchWakeContext(
       return { hostId: wake.hostId, wake: wake.kind };
     case "workspace-ready":
     case "thread-ready":
+    case "turn-completed":
     case "turn-started":
     case "interaction-settled":
       return { threadId: wake.threadId, wake: wake.kind };
@@ -252,6 +254,9 @@ async function executePreparedQueuedMessageDispatch(
     case "thread-ready":
       await runThreadReadyDispatch(deps, wake.threadId);
       return;
+    case "turn-completed":
+      await runThreadReadyDispatch(deps, wake.threadId, false);
+      return;
     case "turn-started":
       await runTurnStartedDispatch(deps, wake.threadId);
       return;
@@ -289,11 +294,29 @@ async function executePreparedQueuedMessageDispatch(
 async function runThreadReadyDispatch(
   deps: QueueDispatchDeps,
   threadId: string,
+  respectRequeuePacing = true,
 ): Promise<void> {
   try {
     await deps.lifecycleDedupers.queuedMessageDispatch.run(
       threadId,
       async () => {
+        const thread = getThread(deps.db, threadId);
+        if (
+          thread?.status === "idle" &&
+          thread.archivedAt === null &&
+          thread.deletedAt === null
+        ) {
+          for (const row of listQueuedThreadMessagesWaitingOnKind(deps.db, {
+            kind: "plugin",
+            threadId,
+          })) {
+            await attemptAutomaticQueuedMessage(deps, row, {
+              now: Date.now(),
+              respectRequeuePacing,
+              retryingFailure: false,
+            });
+          }
+        }
         await sendNextQueuedMessageIfPresent(deps, { threadId });
       },
     );

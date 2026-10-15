@@ -1,4 +1,6 @@
 import { fileURLToPath } from "node:url";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { createScriptedEchoRuntime } from "@bb/agent-runtime/test";
 import { getThread, listEvents } from "@bb/db";
 import type { PromptInput, ThreadEvent } from "@bb/domain";
@@ -12,12 +14,14 @@ import {
   waitForQueuedCommand,
 } from "../helpers/commands.js";
 import {
+  expireArchiveUndoGrace,
   seedEnvironment,
   seedHostSession,
   seedProjectWithSource,
   seedThread,
 } from "../helpers/seed.js";
 import { withTestHarness } from "../helpers/test-app.js";
+import { runThreadLifecycleSweep } from "../../src/services/system/periodic-sweeps.js";
 
 const bridgePath = fileURLToPath(
   new URL(
@@ -47,6 +51,182 @@ const options = {
 } as const;
 
 describe("checkpoint identity through runtime, ingestion, and editing", () => {
+  it("steers and archives the root after a child resumes before its activity notification", async () => {
+    await withTestHarness(async (harness) => {
+      const { host, session } = seedHostSession(harness.deps);
+      const { project } = seedProjectWithSource(harness.deps, {
+        hostId: host.id,
+      });
+      const environment = seedEnvironment(harness.deps, {
+        hostId: host.id,
+        projectId: project.id,
+        status: "ready",
+      });
+      const thread = seedThread(harness.deps, {
+        projectId: project.id,
+        environmentId: environment.id,
+      });
+      const sibling = seedThread(harness.deps, {
+        projectId: project.id,
+        environmentId: environment.id,
+      });
+      const scriptPath = join(harness.config.dataDir, "resumed-child.json");
+      writeFileSync(
+        scriptPath,
+        JSON.stringify({
+          strictTurnTargets: true,
+          turns: [
+            [
+              {
+                method: "turn/started",
+                params: {
+                  threadId: "root",
+                  turn: { id: "root-turn", status: "inProgress" },
+                },
+              },
+              {
+                method: "item/completed",
+                params: {
+                  threadId: "root",
+                  turnId: "root-turn",
+                  item: {
+                    type: "subAgentActivity",
+                    id: "spawn-child",
+                    kind: "started",
+                    agentThreadId: "child",
+                    agentPath: "/root/child",
+                  },
+                },
+              },
+              {
+                method: "turn/started",
+                nativeThreadId: "child",
+                params: {
+                  threadId: "child",
+                  turn: { id: "child-first", status: "inProgress" },
+                },
+              },
+              {
+                method: "turn/completed",
+                nativeThreadId: "child",
+                params: {
+                  threadId: "child",
+                  turn: { id: "child-first", status: "completed" },
+                },
+              },
+              {
+                method: "turn/started",
+                nativeThreadId: "child",
+                params: {
+                  threadId: "child",
+                  turn: { id: "child-resumed", status: "inProgress" },
+                },
+              },
+            ],
+          ],
+        }),
+      );
+      const events: ThreadEvent[] = [];
+      const runtime = createScriptedEchoRuntime({
+        launch: { modulePath: bridgePath },
+        runtime: {
+          workspacePath: harness.config.dataDir,
+          env: {
+            BB_CODEX_BRIDGE_APP_SERVER_COMMAND: process.execPath,
+            BB_CODEX_BRIDGE_APP_SERVER_ARGS: JSON.stringify([
+              appServerPath,
+              scriptPath,
+            ]),
+          },
+          onEvent: (event) => events.push(event),
+        },
+      });
+      const args = {
+        environmentId: environment.id,
+        projectId: project.id,
+        providerId: "codex",
+        options,
+      };
+      try {
+        await runtime.startThread({ ...args, threadId: thread.id });
+        await runtime.startThread({ ...args, threadId: sibling.id });
+        await runtime.runTurn({
+          threadId: thread.id,
+          options,
+          input: [{ type: "text", text: "work", mentions: [] }],
+          clientRequestId: "creq_23456789ab",
+        });
+        await runtime.runTurn({
+          threadId: sibling.id,
+          options,
+          input: [{ type: "text", text: "/wait-for-interrupt", mentions: [] }],
+          clientRequestId: "creq_23456789ac",
+        });
+        const activeTurnId = runtime.getActiveTurnId(thread.id);
+        if (activeTurnId === null) throw new Error("Missing active root turn");
+        await expect(
+          runtime.steerTurn({
+            threadId: thread.id,
+            expectedTurnId: activeTurnId,
+            options,
+            input: [{ type: "text", text: "human correction", mentions: [] }],
+            clientRequestId: "creq_23456789ad",
+          }),
+        ).resolves.toEqual({ status: "steered" });
+        const response = await harness.app.request("/internal/session/events", {
+          method: "POST",
+          headers: internalAuthHeaders(harness),
+          body: JSON.stringify({
+            sessionId: session.id,
+            eventGroups: groupHostDaemonEvents(
+              events.map((event) => ({ threadId: event.threadId, event })),
+            ),
+          }),
+        });
+        expect(response.status, await response.text()).toBe(200);
+        const archived = await harness.app.request(
+          `/api/v1/threads/${thread.id}/archive-all`,
+          { method: "POST" },
+        );
+        expect(archived.status).toBe(200);
+        expireArchiveUndoGrace(harness.deps, thread.id);
+        await runThreadLifecycleSweep(harness.deps);
+        const stop = await waitForQueuedCommand(
+          harness,
+          (queued) =>
+            queued.command.type === "thread.stop" &&
+            queued.command.threadId === thread.id,
+        );
+        if (stop.command.type !== "thread.stop")
+          throw new Error("Missing archive stop");
+        const stopped = await runtime.stopThread({
+          threadId: stop.command.threadId,
+        });
+        await reportQueuedCommandSuccess(harness, stop, stopped);
+        expect(events).toContainEqual(
+          expect.objectContaining({
+            type: "turn/completed",
+            threadId: thread.id,
+            status: "interrupted",
+            providerCheckpointId: "root-turn",
+          }),
+        );
+        expect(runtime.getActiveTurnId(thread.id)).toBeNull();
+        expect(runtime.getActiveTurnId(sibling.id)).not.toBeNull();
+        expect(getThread(harness.db, sibling.id)?.archivedAt).toBeNull();
+        expect(
+          events.filter(
+            (event) =>
+              event.type === "turn/input/accepted" &&
+              event.clientRequestId === "creq_23456789ad",
+          ),
+        ).toHaveLength(1);
+      } finally {
+        await runtime.shutdown();
+      }
+    });
+  }, 20_000);
+
   it.each(["fork", "resume"] as const)(
     "preserves the %s session and checkpoint through SQLite and rewind preparation",
     async (construction) => {

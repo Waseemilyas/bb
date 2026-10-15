@@ -250,7 +250,7 @@ interface QueuedMessageDispatchFollowUp {
   kind: "queued-message-dispatch";
   wake: Extract<
     QueuedMessageDispatchWake,
-    { kind: "thread-ready" } | { kind: "turn-started" }
+    { kind: "turn-completed" } | { kind: "turn-started" }
   >;
 }
 
@@ -512,11 +512,12 @@ async function applyEventEffects(
         }
         if (
           event.status === "completed" &&
+          turnCompleted.isRootTurnCompletion &&
           turnCompleted.nextStatus === "idle"
         ) {
           followUps.push({
             kind: "queued-message-dispatch",
-            wake: { kind: "thread-ready", threadId: entry.threadId },
+            wake: { kind: "turn-completed", threadId: entry.threadId },
           });
         }
         continue;

@@ -959,8 +959,16 @@ export function createCodexEventTranslator(
       delta.providerTurnId !== undefined
     ) {
       const startedTurnId = delta.providerTurnId;
+      const knownChild = providerThreadId
+        ? findTrackedSubAgentByAgentThreadId(providerThreadId)
+        : undefined;
       const mappedFromProviderThread = providerThreadId
-        ? delegationParentToolCallIdsByProviderThreadId.get(providerThreadId)
+        ? (delegationParentToolCallIdsByProviderThreadId.get(
+            providerThreadId,
+          ) ??
+          (knownChild?.parentProviderThreadId !== providerThreadId
+            ? knownChild?.callId
+            : undefined))
         : undefined;
       if (mappedFromProviderThread) {
         parentToolCallId = mappedFromProviderThread;
@@ -1060,6 +1068,16 @@ export function createCodexEventTranslator(
   function beginCodexTrackedSubAgent(
     activity: CodexSubAgentActivityEvent,
   ): ThreadDelta[] {
+    const previousCallId = trackedSubAgentCallIdsByAgentThreadId.get(
+      activity.item.agentThreadId,
+    );
+    if (previousCallId !== undefined) {
+      for (const [turnId, callId] of delegationParentToolCallIdsByTurnId) {
+        if (callId === previousCallId) {
+          delegationParentToolCallIdsByTurnId.set(turnId, activity.item.id);
+        }
+      }
+    }
     const tracked: CodexTrackedSubAgent = {
       agentPath: activity.item.agentPath,
       agentThreadId: activity.item.agentThreadId,

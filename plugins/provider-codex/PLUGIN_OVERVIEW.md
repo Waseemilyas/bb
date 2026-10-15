@@ -7,6 +7,7 @@ Start a thread, pick Codex, and let it write and review code in your repository 
 - A service tier picker that offers the tiers Codex reports for the selected model (Fast, and Ultrafast where the account has it).
 - A Daybreak switch in the model picker for accounts that have Daybreak, usable with any model that supports it.
 - Checkpoint forks, manual compaction, thread rename, and thread archive.
+- Messages from other agents wait until the current turn finishes. The queue's Send now action can deliver an urgent correction.
 - Question cards for the questions Codex asks while it keeps working. Your answer reaches Codex as a message.
 - Codex skills from your home directory and project, listed next to bb skills.
 - Health, usage, and install status on each host, with an install or update action.

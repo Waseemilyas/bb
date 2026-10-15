@@ -9,12 +9,15 @@ import {
 } from "@bb/db";
 import type { ThreadQueuedMessage } from "@bb/domain";
 import { createDeferredPromise } from "@bb/test-helpers";
+import { groupHostDaemonEvents } from "@bb/host-daemon-contract";
 import type { StartedOnBehalfOf } from "@bb/domain";
 import type {
   MessageDispatchHookContext,
   PluginHookName,
+  BbPluginApi,
 } from "@get-bb/plugin-sdk";
-import { afterEach, describe, expect, it } from "vitest";
+import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../src/errors.js";
 import {
   invokePluginInline,
@@ -36,6 +39,7 @@ import { createClientTurnRequestId } from "../../src/services/threads/thread-eve
 import { toThreadQueuedMessage } from "../../src/services/threads/thread-queued-messages.js";
 import { textInput } from "../helpers/prompt-input.js";
 import {
+  internalAuthHeaders,
   listQueuedThreadCommands,
   reportQueuedCommandSuccess,
   waitForQueuedCommand,
@@ -85,10 +89,11 @@ function installHooks(
 
 afterEach(() => {
   setPluginHookProvider(undefined);
+  vi.restoreAllMocks();
 });
 
 function seedDispatchFixture(harness: TestAppHarness, hostId: string) {
-  const { host } = seedHostSession(harness.deps, { id: hostId });
+  const { host, session } = seedHostSession(harness.deps, { id: hostId });
   const { project } = seedProjectWithSource(harness.deps, {
     hostId: host.id,
     path: WORKSPACE_PATH,
@@ -98,7 +103,7 @@ function seedDispatchFixture(harness: TestAppHarness, hostId: string) {
     projectId: project.id,
     path: WORKSPACE_PATH,
   });
-  return { environment, host, project };
+  return { environment, host, project, session };
 }
 
 function createHookedThread(
@@ -165,7 +170,10 @@ function seedRunnableThread(
   harness: TestAppHarness,
   args: { hostId: string; status: "idle" | "active" },
 ) {
-  const { environment, project } = seedDispatchFixture(harness, args.hostId);
+  const { environment, project, session } = seedDispatchFixture(
+    harness,
+    args.hostId,
+  );
   const thread = seedThread(harness.deps, {
     environmentId: environment.id,
     projectId: project.id,
@@ -184,7 +192,7 @@ function seedRunnableThread(
       providerThreadId: `provider-${args.hostId}`,
     });
   }
-  return { environment, project, thread };
+  return { environment, project, thread, session };
 }
 
 async function expectApiError(run: () => Promise<unknown>): Promise<ApiError> {
@@ -1191,6 +1199,167 @@ describe("message.dispatch grouped authors", () => {
         });
         expect(listQueuedThreadMessages(harness.db, thread.id)).toEqual([]);
         expect(turnRequests(harness, thread.id)).toHaveLength(turnsBefore + 1);
+      });
+    },
+  );
+});
+
+describe("Codex agent messages", () => {
+  it.each([false, true])(
+    "delivers queued agent messages once after the current turn (host disconnected: %s)",
+    async (disconnect) => {
+      await withTestHarness(async (harness) => {
+        const plugin = createFakePluginHost();
+        const module = await import(
+          new URL(
+            "../../../../plugins/provider-codex/server.ts",
+            import.meta.url,
+          ).href
+        );
+        const registerCodex: (bb: BbPluginApi) => void = module.default;
+        registerCodex(plugin.bb);
+        const handler = plugin.harness.registrations.hooks["message.dispatch"];
+        if (handler !== null) {
+          installHooks({
+            "message.dispatch": [{ pluginId: "provider-codex", handler }],
+          });
+        }
+        const { thread, environment, session } = seedRunnableThread(harness, {
+          hostId: "host-codex-agent-queue",
+          status: "active",
+        });
+        const sender = seedThread(harness.deps, {
+          environmentId: thread.environmentId,
+          projectId: thread.projectId,
+          status: "idle",
+        });
+        const before = turnRequests(harness, thread.id).length;
+        for (const message of ["first report", "second report"]) {
+          await expect(
+            acceptThreadSendRequest(harness.deps, {
+              thread,
+              payload: {
+                input: textInput(message),
+                senderThreadId: sender.id,
+                mode: "steer-if-active",
+              },
+            }),
+          ).resolves.toMatchObject({ delivery: "queued" });
+        }
+        const queued = listQueuedThreadMessages(harness.db, thread.id);
+        expect(queued).toHaveLength(2);
+        await runQueuedMessageDispatch(harness.deps, {
+          kind: "plugin-recheck",
+        });
+        expect(
+          listQueuedThreadMessages(harness.db, thread.id).map((row) => row.id),
+        ).toEqual(queued.map((row) => row.id));
+        expect(turnRequests(harness, thread.id)).toHaveLength(before);
+
+        const connection = disconnect
+          ? vi.spyOn(harness.hub, "hasDaemonForHost").mockReturnValue(false)
+          : null;
+        const completed = await harness.app.request(
+          "/internal/session/events",
+          {
+            method: "POST",
+            headers: internalAuthHeaders(harness),
+            body: JSON.stringify({
+              sessionId: session.id,
+              eventGroups: groupHostDaemonEvents([
+                {
+                  threadId: thread.id,
+                  event: {
+                    type: "turn/completed",
+                    threadId: thread.id,
+                    providerThreadId: "provider-host-codex-agent-queue",
+                    scope: {
+                      kind: "turn",
+                      turnId: "turn-host-codex-agent-queue",
+                    },
+                    status: "completed",
+                  },
+                },
+              ]),
+            }),
+          },
+        );
+        expect(completed.status, await completed.text()).toBe(200);
+        if (connection !== null) {
+          await vi.waitFor(() =>
+            expect(
+              queuedRows(harness, thread.id).map((row) => row.waitingOn?.kind),
+            ).toEqual(["host-offline", "host-offline"]),
+          );
+          expect(
+            listQueuedThreadCommands(harness, "turn.submit", thread.id),
+          ).toHaveLength(0);
+          expect(
+            listQueuedThreadMessages(harness.db, thread.id).map(
+              (row) => row.id,
+            ),
+          ).toEqual(queued.map((row) => row.id));
+          connection.mockRestore();
+          await runQueuedMessageDispatch(harness.deps, {
+            kind: "host-connected",
+            hostId: environment.hostId,
+          });
+        }
+        await vi.waitFor(() =>
+          expect(
+            listQueuedThreadCommands(harness, "turn.submit", thread.id),
+          ).toHaveLength(1),
+        );
+        const commands = listQueuedThreadCommands(
+          harness,
+          "turn.submit",
+          thread.id,
+        );
+        expect(commands).toHaveLength(1);
+        expect(commands[0]).toMatchObject({
+          target: { mode: "start" },
+          input: textInput(
+            `[bb message from thread:${sender.id}]\n\nfirst report`,
+          ),
+        });
+        expect(
+          listQueuedThreadMessages(harness.db, thread.id).map((row) => row.id),
+        ).toEqual([queued[1]!.id]);
+        await runQueuedMessageDispatch(harness.deps, {
+          kind: "thread-ready",
+          threadId: thread.id,
+        });
+        expect(
+          listQueuedThreadCommands(harness, "turn.submit", thread.id),
+        ).toHaveLength(1);
+        applyLoggedThreadLifecycleEvent(harness.deps, {
+          event: { type: "run.succeeded" },
+          threadId: thread.id,
+        });
+        await runQueuedMessageDispatch(harness.deps, {
+          kind: "turn-completed",
+          threadId: thread.id,
+        });
+        const delivered = listQueuedThreadCommands(
+          harness,
+          "turn.submit",
+          thread.id,
+        );
+        expect(delivered).toHaveLength(2);
+        expect(delivered[1]).toMatchObject({
+          target: { mode: "start" },
+          input: textInput(
+            `[bb message from thread:${sender.id}]\n\nsecond report`,
+          ),
+        });
+        expect(listQueuedThreadMessages(harness.db, thread.id)).toEqual([]);
+        await runQueuedMessageDispatch(harness.deps, {
+          kind: "thread-ready",
+          threadId: thread.id,
+        });
+        expect(
+          listQueuedThreadCommands(harness, "turn.submit", thread.id),
+        ).toHaveLength(2);
       });
     },
   );

@@ -24,10 +24,12 @@ Messaging:
     --file <path>                          CLI-local absolute path, file: URL, or uploaded file path
     --image <path>                         CLI-local absolute path, file: URL, or uploaded image path
 
-  Tell steers by default, delivering the message immediately into the active
+  Tell requests steering by default. The Codex provider queues messages from
+  other threads until the current turn ends; use the queue's Send now action
+  for an urgent correction. Human messages deliver immediately into the active
   turn. Use --mode queue for non-urgent follow-ups that can wait until the agent
-  is free; --mode auto steers a live turn and starts a new one on an idle
-  thread. Input sent while a turn is starting stays in the queue with
+  is free; --mode auto starts a new turn on an idle thread. Input sent while a
+  turn is starting stays in the queue with
   `waitingOn: turn-starting`; `turn/started` wakes it and steers it into that
   turn. A target that is awaiting user interaction (an open question or
   approval) cannot take a prompt; tell then adds the message to the thread's

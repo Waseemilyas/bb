@@ -73,7 +73,10 @@ A plugin's commands and settings are documented in that plugin's own skill.
   deliverable, validation to perform, and what to report back.
 - Let threads work. Do not poll with shell sleeps or repeated log and status
   reads; use `bb thread wait <thread-id>` when you must block.
-- `bb thread tell` steers the active turn by default. Steer for a wrong
+- `bb thread tell` requests steering by default. Codex queues messages from
+  other threads until the current turn finishes; send an urgent queued message
+  with `bb thread queue send <thread> <message-id> --mode steer`.
+  Human messages steer the active turn. Steer for a wrong
   direction, a hard stop, or a critical clarification; use `--mode queue` for
   non-urgent follow-ups. A send reported as `queued` is not a failure; do not
   resend it.
