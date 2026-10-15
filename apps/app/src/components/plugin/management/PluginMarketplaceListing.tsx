@@ -20,7 +20,8 @@ import type { PluginCatalogSearchEntry } from "@/hooks/queries/plugin-catalog-qu
 import { PluginOverviewMarkdown } from "@/components/plugin/management/PluginOverviewMarkdown";
 import { getPluginsRoutePath } from "@/lib/route-paths";
 import { PluginCardAuthorName } from "./PluginCard";
-import { PluginDisplayName } from "./PluginExperimentalBadge";
+import { PluginExperimentalBadge } from "./PluginExperimentalBadge";
+import { splitPluginDisplayName } from "@bb/domain/plugin-display-name";
 import { catalogEntryDetailKey } from "./installed-plugin-catalog";
 import {
   CatalogEntryIconChip,
@@ -310,17 +311,23 @@ export function PluginMoreFromAuthorSection({
   return (
     <ResourceDefinitionSection label="More from this author">
       <ResourceListPanel className="py-0">
-        {moreEntries.map((candidate) => (
-          <ResourceRow
-            key={`${candidate.marketplace}/${candidate.entryId}`}
-            leading={<CatalogEntryIconChip entry={candidate} />}
-            title={<PluginDisplayName displayName={candidate.displayName} />}
-            description={candidate.description || undefined}
-            trailingVisual={<ResourceRowDetailChevron />}
-            openLabel={`Open ${candidate.displayName} details`}
-            onOpen={() => onOpenPlugin(catalogEntryDetailKey(candidate))}
-          />
-        ))}
+        {moreEntries.map((candidate) => {
+          const title = splitPluginDisplayName(candidate.displayName);
+          return (
+            <ResourceRow
+              key={`${candidate.marketplace}/${candidate.entryId}`}
+              leading={<CatalogEntryIconChip entry={candidate} />}
+              title={title.name}
+              titleMeta={
+                title.experimental ? <PluginExperimentalBadge /> : undefined
+              }
+              description={candidate.description || undefined}
+              trailingVisual={<ResourceRowDetailChevron />}
+              openLabel={`Open ${candidate.displayName} details`}
+              onOpen={() => onOpenPlugin(catalogEntryDetailKey(candidate))}
+            />
+          );
+        })}
       </ResourceListPanel>
     </ResourceDefinitionSection>
   );

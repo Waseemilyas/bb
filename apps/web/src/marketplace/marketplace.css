@@ -434,9 +434,9 @@
   flex-shrink: 0;
   align-items: center;
   padding: 2px 6px;
-  border: 1px solid color-mix(in oklab, var(--spark) 40%, transparent);
+  border: 1px solid color-mix(in oklab, var(--attention) 50%, transparent);
   border-radius: 4px;
-  background: color-mix(in oklab, var(--spark) 10%, transparent);
+  background: color-mix(in oklab, var(--attention) 14%, transparent);
   color: var(--ink);
   font-size: var(--text-label-small);
   font-weight: 500;
