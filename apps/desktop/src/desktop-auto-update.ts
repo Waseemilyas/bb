@@ -139,7 +139,23 @@ export function createElectronAutoUpdaterAdapter(
       updater.on("update-available", handler);
     },
     onUpdateDownloaded(handler) {
-      updater.on("update-downloaded", handler);
+      if (process.platform !== "darwin") {
+        updater.on("update-downloaded", handler);
+        return;
+      }
+      let pending: UpdateDownloadedEvent | null = null;
+      updater.on("update-downloaded", (event) => {
+        pending = event;
+      });
+      updater.on("error", () => {
+        pending = null;
+      });
+      nativeUpdater.on("update-downloaded", () => {
+        if (pending === null) return;
+        const event = pending;
+        pending = null;
+        handler(event);
+      });
     },
     onUpdateNotAvailable(handler) {
       updater.on("update-not-available", handler);

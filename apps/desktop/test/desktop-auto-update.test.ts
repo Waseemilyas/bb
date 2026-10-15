@@ -522,15 +522,21 @@ describe("macOS native preparation", () => {
         quit: () => undefined,
         onQuit: () => undefined,
       });
-      const check = vi.spyOn(updater, "checkForUpdates").mockImplementation(async () => {
-        updater.emit("update-available", createUpdateInfo("0.46.0"));
-        return createUpdateCheckResult("0.46.0");
-      });
-      const download = vi.spyOn(updater, "downloadUpdate").mockImplementation(async () => {
-        updater.emit("update-downloaded", createDownloadedEvent("0.46.0"));
-        return ["/tmp/bb.zip"];
-      });
-      const install = vi.spyOn(updater, "quitAndInstall").mockImplementation(() => undefined);
+      const check = vi
+        .spyOn(updater, "checkForUpdates")
+        .mockImplementation(async () => {
+          updater.emit("update-available", createUpdateInfo("0.46.0"));
+          return createUpdateCheckResult("0.46.0");
+        });
+      const download = vi
+        .spyOn(updater, "downloadUpdate")
+        .mockImplementation(async () => {
+          updater.emit("update-downloaded", createDownloadedEvent("0.46.0"));
+          return ["/tmp/bb.zip"];
+        });
+      const install = vi
+        .spyOn(updater, "quitAndInstall")
+        .mockImplementation(() => undefined);
       const service = createDesktopAutoUpdateService({
         currentVersion: "0.0.1",
         enabled: true,
