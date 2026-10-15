@@ -982,7 +982,7 @@ export function PublicMarketplaceDetailPage({
             {category}
           </MarketplaceLink>
           <span aria-hidden>/</span>
-          <strong>{entry.displayName}</strong>
+          <strong>{splitPluginDisplayName(entry.displayName).name}</strong>
         </nav>
         <header className="marketplace-detail-head">
           <PluginArtwork entry={entry} large />
