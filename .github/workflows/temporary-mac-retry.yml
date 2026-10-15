@@ -1,0 +1,44 @@
+name: macOS native retry regression
+on:
+  push:
+    branches: [bb/qa-macos-update-retry-fix]
+env:
+  QA_PRODUCT_HEAD: a33f847a4fdbb8a0ff5292efc63eb743b16a8379
+jobs:
+  package:
+    runs-on: blacksmith-6vcpu-macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: ./.github/actions/setup-workspace-tools
+        with:
+          node-version: 22.x
+          pnpm-version: 9.15.0
+      - uses: ./.github/actions/cache-workspace
+        id: cache
+        timeout-minutes: 1
+        continue-on-error: true
+        with:
+          node-version: 22.x
+          cache-prefix: package-smoke
+          turbo-cache-max-size-mb: 256
+      - name: Install dependencies
+        env:
+          TURBO_CACHE_RESTORE_OUTCOME: ${{ steps.cache.outcome }}
+        run: bash .github/actions/setup-workspace/install-dependencies.sh --filter '!@bb/mobile'
+      - name: Desktop regression tests
+        run: pnpm exec turbo run test --filter=@bb/desktop --output-logs=new-only
+      - name: Package isolated desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: pnpm exec turbo run package --filter=@bb/desktop --output-logs=new-only
+      - name: Prepare isolated fixtures
+        run: node apps/desktop/scripts/temporary-mac-retry-fixtures.mjs
+      - name: Archive fixtures
+        run: tar -czf mac-retry-apps.tgz -C apps/desktop/release mac-retry-fix-qa
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: mac-retry-apps
+          path: mac-retry-apps.tgz
+          compression-level: 0
+          retention-days: 7
