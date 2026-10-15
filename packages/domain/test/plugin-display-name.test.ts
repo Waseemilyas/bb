@@ -18,6 +18,12 @@ describe("splitPluginDisplayName", () => {
     ["[Experimental]", "[Experimental]", null],
     ["Lab []", "Lab []", null],
     ["Lab [Beta] x", "Lab [Beta] x", null],
+    ["Lab [a [b]]", "Lab [a [b]]", null],
+    ["Lab [[Experimental]]", "Lab [[Experimental]]", null],
+    ["Lab [BB Official]", "Lab [BB Official]", null],
+    ["Lab [verified]", "Lab [verified]", null],
+    ["Lab [constructor]", "Lab", { label: "constructor", tone: "neutral" }],
+    ["Lab [__proto__]", "Lab", { label: "__proto__", tone: "neutral" }],
     [
       "Lab [a label that is far too long to show]",
       "Lab [a label that is far too long to show]",
