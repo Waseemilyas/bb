@@ -43,6 +43,33 @@ function renderIdleTimeline(events: ThreadEventRow[]) {
 }
 
 describe("timeline interruption projection", () => {
+  it("renders a completed assistant update saved after a manual stop", () => {
+    const event = createTimelineEventFactory({ threadId: "thread-1" });
+    const timeline = renderIdleTimeline([
+      event.turnStarted({ createdAt: 0 }),
+      event.systemThreadInterrupted({ createdAt: 1_000, reason: "manual-stop" }),
+      event.assistantDelta({
+        createdAt: 2_000,
+        delta: "TL;DR: ",
+        itemId: "saved-final",
+      }),
+      event.assistantCompleted({
+        createdAt: 3_000,
+        itemId: "saved-final",
+        text: "TL;DR: I used the existing GDP credentials",
+      }),
+      event.turnCompleted({ createdAt: 3_100 }),
+    ]);
+
+    expect(timeline.text).toContain("I used the existing GDP credentials");
+    expect(timeline.messages).toContainEqual(
+      expect.objectContaining({
+        kind: "assistant-text",
+        text: "TL;DR: I used the existing GDP credentials",
+      }),
+    );
+  });
+
   it("keeps post-turn automatic compaction pending while the thread is idle", () => {
     const event = createTimelineEventFactory({ threadId: "thread-1" });
     const events = [

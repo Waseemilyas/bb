@@ -4,7 +4,11 @@ import {
   makeThreadResponse,
   type FakePluginHost,
 } from "@get-bb/plugin-sdk/testing";
-import { registerAsyncQuestions } from "./async-questions.js";
+import {
+  CODEX_REQUEST_INPUT_TITLE_MAX,
+  codexRequestInputTitle,
+  registerAsyncQuestions,
+} from "./async-questions.js";
 import { CODEX_ASYNC_QUESTION_RENDERER_ID } from "./async-question-form.js";
 
 const THREAD_ID = "thr_async";
@@ -49,6 +53,16 @@ async function notify(host: FakePluginHost, providerId = "codex") {
 }
 
 describe("Codex async questions", () => {
+  it("keeps a question title inside the requestInput limit", () => {
+    const long = "A".repeat(240);
+    const title = codexRequestInputTitle(long);
+    expect(title.length).toBeLessThanOrEqual(CODEX_REQUEST_INPUT_TITLE_MAX);
+    expect(title.length).toBeGreaterThan(0);
+    expect(title.endsWith("...")).toBe(true);
+    expect(codexRequestInputTitle("  Choose a plan  ")).toBe("Choose a plan");
+    expect(codexRequestInputTitle("   ")).toBe("Question");
+  });
+
   it("asks once in the thread and sends the answer as a message", async () => {
     const host = createHost([questionRow(5)]);
 

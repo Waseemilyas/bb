@@ -45,10 +45,7 @@ interface ProjectBufferedTextEventArgs<
 
 type ResolveBufferedTextMessageKeyArgs<
   TMessage extends BufferedTextEventProjectionMessage,
-> = Omit<
-  ProjectBufferedTextEventArgs<TMessage>,
-  "createMessage" | "mode" | "text"
->;
+> = Omit<ProjectBufferedTextEventArgs<TMessage>, "createMessage" | "text">;
 
 type UpsertBufferedTextMessageArgs<
   TMessage extends BufferedTextEventProjectionMessage,
@@ -73,7 +70,14 @@ function resolveBufferedTextMessageKey<
 
   const messageKey = createBufferedTextInstanceKey(args.identity);
   if (args.state.closedTurnIds.has(args.identity.turnId)) {
-    return null;
+    // A stop or error closes the turn at once. The provider can still retain
+    // a completed assistant update afterwards. Late deltas stay dropped; the
+    // completion is the saved reply and must be rendered.
+    if (args.mode !== "final") {
+      return null;
+    }
+    args.state.closedTurnIds.delete(args.identity.turnId);
+    args.state.openTurnIds.add(args.identity.turnId);
   }
   if (args.refs.finalizedKeys.has(messageKey)) {
     return null;

@@ -958,6 +958,41 @@ describe("codex subagent activity correlation", () => {
     expect(nextRootTurn).not.toHaveProperty("parentToolCallId");
   });
 
+  it("keeps a resumed child out of the root lifecycle when its turn starts before its follow-up activity", () => {
+    const harness = createHarness();
+    harness.translate(childTurnStarted("parent-turn"));
+    harness.translate(subAgentActivity({ id: "spawn-1", kind: "started" }));
+    harness.translate(childTurnStarted("child-turn-1", "agent-thread-1"));
+    harness.translate(childTurnCompleted("child-turn-1", "agent-thread-1"));
+
+    const resumed = harness.translate(
+      childTurnStarted("child-turn-2", "agent-thread-1"),
+    );
+    expect(resumed).toContainEqual(
+      expect.objectContaining({
+        type: "turn/started",
+        parentToolCallId: harness.itemId("spawn-1"),
+      }),
+    );
+    harness.translate(
+      rawCollaborationCall({ callId: "followup-1", name: "followup_task" }),
+    );
+    harness.translate(
+      subAgentActivity({ id: "followup-1", kind: "interacted" }),
+    );
+    expect(
+      harness.translate(childTurnCompleted("child-turn-2", "agent-thread-1")),
+    ).toContainEqual(
+      expect.objectContaining({
+        type: "item/completed",
+        item: expect.objectContaining({
+          id: harness.itemId("followup-1"),
+          status: "completed",
+        }),
+      }),
+    );
+  });
+
   it("links a rawless resumed subagent when its child turn starts", () => {
     const harness = createHarness();
 

@@ -13,6 +13,15 @@ import {
 const CODEX_PROVIDER_ID = "codex";
 const QUESTION_TIMEOUT_MS = 60 * 60 * 1000;
 const EVENT_PAGE_SIZE = 100;
+// Must match PLUGIN_INTERACTION_MAX_TITLE_LENGTH in @bb/domain.
+export const CODEX_REQUEST_INPUT_TITLE_MAX = 160;
+
+export function codexRequestInputTitle(raw: string): string {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return "Question";
+  if (trimmed.length <= CODEX_REQUEST_INPUT_TITLE_MAX) return trimmed;
+  return `${trimmed.slice(0, CODEX_REQUEST_INPUT_TITLE_MAX - 3).trimEnd()}...`;
+}
 
 function cursorKey(threadId: string): string {
   return `async-question-cursor:${threadId}`;
@@ -75,10 +84,11 @@ export function registerAsyncQuestions(bb: BbPluginApi): void {
     const result = await bb.ui.requestInput({
       threadId,
       rendererId: CODEX_ASYNC_QUESTION_RENDERER_ID,
-      title:
+      title: codexRequestInputTitle(
         state.questions.length === 1
           ? state.questions[0].title
           : `${state.questions.length} questions`,
+      ),
       payload: { questions: state.questions },
       timeoutMs: QUESTION_TIMEOUT_MS,
       presentation: {
