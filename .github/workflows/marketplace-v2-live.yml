@@ -1,8 +1,6 @@
 name: Marketplace v2 live validation
 
 on:
-  schedule:
-    - cron: "27 4 * * *"
   workflow_dispatch:
 
 permissions:

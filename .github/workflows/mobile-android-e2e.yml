@@ -4,8 +4,6 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
-  schedule:
-    - cron: "37 9 * * *"
 
 permissions:
   contents: read

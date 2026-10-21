@@ -22,9 +22,6 @@ on:
         description: Space-separated flow names (default = the CI set; see apps/mobile/e2e/scripts/ci-run-flows.sh)
         required: false
         default: ""
-  schedule:
-    # Nightly, 09:17 UTC (runs on the default branch).
-    - cron: "17 9 * * *"
 
 permissions:
   contents: read
